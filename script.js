@@ -1,11 +1,11 @@
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "...",
-    messagingSenderId: "...",
-    appId: "..."
+    apiKey: "AIzaSyCi8cZYVN6gpZRRSMx2qVHKBRRVQZmdWw4",
+    authDomain: "analyticalchess.firebaseapp.com",
+    databaseURL: "https://analyticalchess-default-rtdb.firebaseio.com",
+    projectId: "analyticalchess",
+    storageBucket: "analyticalchess.firebasestorage.app",
+    messagingSenderId: "1068006653983",
+    appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
 
 firebase.initializeApp(firebaseConfig);
