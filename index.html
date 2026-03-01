@@ -13,8 +13,8 @@
             <h2 id="winner-text">Game Over</h2>
             <p id="reason-text"></p>
             <div class="modal-actions">
-                <button onclick="requestNewGame()" style="background: #28a745;">🔄 Rematch</button>
-                <button onclick="closeModal()" style="background: #6c757d;">Close</button>
+                <button onclick="location.reload()" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">🔄 New Match</button>
+                <button onclick="closeModal()" style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Close</button>
             </div>
         </div>
     </div>
@@ -37,37 +37,37 @@
             <button id="resign-btn" onclick="resignGame()" disabled>🏳️ Resign</button>
         </div>
 
-        <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba; color: #856404;">
+        <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 15px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ffeeba; color: #856404;">
             <span>Opponent offers a draw.</span>
-            <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer; margin-left: 10px;">Accept</button>
-            <button onclick="handleDraw(false)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor:pointer;">Decline</button>
+            <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer; margin-left: 10px; border-radius: 4px;">Accept</button>
+            <button onclick="handleDraw(false)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor:pointer; border-radius: 4px;">Decline</button>
         </div>
 
         <div id="setup-section">
-            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer;">Play New Game</button>
-            <p id="match-status" style="margin-top:15px; font-weight: bold; min-height: 24px;"></p>
+            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Find Opponent</button>
+            <p id="match-status" style="margin-top:15px; font-weight: bold; min-height: 24px; color: #2b4a7d;"></p>
         </div>
 
         <div class="game-layout">
             <div class="board-container">
-                <div id="board" style="width: 400px;"></div>
+                <div id="board" style="width: 400px; margin: 0 auto;"></div>
                 <div class="nav-controls">
-                    <button onclick="prevMove()"> < </button>
-                    <button onclick="nextMove()"> > </button>
+                    <button onclick="prevMove()" title="Previous Move"> < </button>
+                    <button onclick="nextMove()" title="Next Move"> > </button>
                 </div>
             </div>
             
             <div class="sidebar-container">
                 <div class="history-section">
-                    <h3>Move History</h3>
+                    <h3 style="margin: 10px 0;">Move History</h3>
                     <div id="move-list"></div>
                 </div>
 
                 <div class="chat-section">
-                    <h3>Game Chat</h3>
+                    <h3 style="margin: 10px 0;">Game Chat</h3>
                     <div id="chat-messages"></div>
                     <div class="chat-input-area">
-                        <input type="text" id="chatInput" placeholder="Type a message...">
+                        <input type="text" id="chatInput" placeholder="Message opponent...">
                         <button onclick="sendMessage()">Send</button>
                     </div>
                 </div>
@@ -75,18 +75,20 @@
         </div>
     </div>
 
-    <audio id="snd-move" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-self.mp3"></audio>
-    <audio id="snd-capture" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/capture.mp3"></audio>
-    <audio id="snd-check" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-check.mp3"></audio>
-    <audio id="snd-game-start" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-start.mp3"></audio>
-    <audio id="snd-game-end" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-end.mp3"></audio>
-    <audio id="snd-msg" src="https://www.soundjay.com/buttons/sounds/button-16.mp3"></audio>
+    <audio id="snd-move" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-self.mp3" preload="auto"></audio>
+    <audio id="snd-capture" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/capture.mp3" preload="auto"></audio>
+    <audio id="snd-check" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-check.mp3" preload="auto"></audio>
+    <audio id="snd-game-start" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-start.mp3" preload="auto"></audio>
+    <audio id="snd-game-end" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-end.mp3" preload="auto"></audio>
+    <audio id="snd-msg" src="https://www.soundjay.com/buttons/sounds/button-16.mp3" preload="auto"></audio>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    
     <script src="script.js"></script>
 </body>
 </html>
