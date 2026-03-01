@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analytical Chess Platform - Wikipedia Edition</title>
+    <title>Analytical Chess Platform - 10 Min Blitz</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -21,6 +21,12 @@
 
     <div class="container">
         <h2>Strategy Hub</h2>
+        
+        <div class="timer-container">
+            <div id="white-timer" class="timer active">White: 10:00</div>
+            <div id="black-timer" class="timer">Black: 10:00</div>
+        </div>
+
         <div class="controls">
             <button id="theme-toggle" onclick="toggleTheme()">🌙 Theme</button>
             <button id="highlight-toggle" onclick="toggleHighlight()">🎯 King Highlight</button>
@@ -30,7 +36,7 @@
         </div>
 
         <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba; color: #856404;">
-            <span id="draw-offer-msg">Opponent offers a draw.</span>
+            <span>Opponent offers a draw.</span>
             <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer; margin-left: 10px;">Accept</button>
             <button onclick="handleDraw(false)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor:pointer;">Decline</button>
         </div>
