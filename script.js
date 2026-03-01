@@ -54,20 +54,14 @@ function onSnapEnd () { board.position(game.fen()); }
 var config = {
     draggable: true,
     position: 'start',
-    // FIXED PIECE THEME LINK
-    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png', 
+    // WIKIPEDIA STANDARD PIECES
+    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
     onDragStart: onDragStart,
     onDrop: onDrop,
     onSnapEnd: onSnapEnd,
     onMouseoverSquare: onMouseoverSquare,
     onMouseoutSquare: onMouseoutSquare
 };
-
-// NOTE: If Gothic still doesn't load from the default host, use this custom pieceTheme function:
-config.pieceTheme = function (piece) {
-  return 'https://raw.githubusercontent.com/Clairvo/chessboardjs/master/img/chesspieces/gothic/' + piece + '.png';
-};
-
 board = Chessboard('board', config);
 
 // 3. ANALYTICAL UPDATES
@@ -96,7 +90,7 @@ function findKing(color) {
     }
 }
 
-// 4. NAVIGATION & MULTIPLAYER
+// 4. NAVIGATION & ACTIONS
 function prevMove() { if (currentMoveIndex > 0) { currentMoveIndex--; board.position(gameHistory[currentMoveIndex]); } }
 function nextMove() { if (currentMoveIndex < gameHistory.length - 1) { currentMoveIndex++; board.position(gameHistory[currentMoveIndex]); } }
 function flipBoard() { board.flip(); }
@@ -152,6 +146,7 @@ function toggleHighlight() {
     updateGameState();
 }
 
+// 5. FIREBASE INTEGRATION
 function joinRoom(color) {
     roomID = document.getElementById('roomInput').value;
     if (!roomID) return alert("Enter Room ID");
@@ -177,12 +172,10 @@ function joinRoom(color) {
         if (data.type === 'resign') showGameOver('resign', data.by);
         if (data.type === 'drawOffer' && data.by !== myColor) document.getElementById('draw-offer-area').style.display = 'block';
         if (data.type === 'drawAccepted') showGameOver('draw');
-        if (data.type === 'rematchRequest') {
-            if (data.by !== myColor) {
-                if(confirm("Opponent wants a rematch. Accept?")) {
-                    database.ref('rooms/' + roomID + '/game').set({ fen: 'start', pgn: '' });
-                    database.ref('rooms/' + roomID + '/status').set({ type: 'newGameStarted' });
-                }
+        if (data.type === 'rematchRequest' && data.by !== myColor) {
+            if(confirm("Opponent wants a rematch. Accept?")) {
+                database.ref('rooms/' + roomID + '/game').set({ fen: 'start', pgn: '' });
+                database.ref('rooms/' + roomID + '/status').set({ type: 'newGameStarted' });
             }
         }
         if (data.type === 'newGameStarted') resetLocalGame();
