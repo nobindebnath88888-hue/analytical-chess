@@ -7,243 +7,75 @@ const firebaseConfig = {
     messagingSenderId: "1068006653983",
     appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
+var board = null, game = new Chess(), myColor = null, roomID = null;
+var soundEnabled = true, highlightEnabled = true, isGameOver = false;
+var currentMoveIndex = -1, gameHistory = [], timers = { w: 600, b: 600 }, timerInterval = null;
+var selectedSquare = null, pendingMove = null;
 
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
+// 2. CAPTURE & REPETITION LOGIC
+const pieceIcons = { p: '♙', r: '♖', n: '♘', b: '♗', q: '♕', P: '♟', R: '♜', N: '♞', B: '♝', Q: '♛' };
+const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
-var board = null;
-var game = new Chess();
-var myColor = null;
-var roomID = null;
-var soundEnabled = true;
-var highlightEnabled = true;
-var currentMoveIndex = -1;
-var gameHistory = [];
-var isGameOver = false;
-var timers = { w: 600, b: 600 };
-var timerInterval = null;
-
-// CLICK-TO-MOVE STATE
-var selectedSquare = null;
-
-// 2. SOUNDS
-function playSound(id) {
-    if (!soundEnabled) return;
-    const sound = document.getElementById(id);
-    if (sound) { sound.currentTime = 0; sound.play().catch(e => {}); }
-}
-
-function toggleSound() {
-    soundEnabled = !soundEnabled;
-    document.getElementById('sound-toggle').innerText = soundEnabled ? "🔊 Sound: ON" : "🔇 Sound: OFF";
-}
-
-// 3. MATCHMAKING
-function startMatchmaking() {
-    const statusMsg = document.getElementById('match-status');
-    const matchBtn = document.getElementById('match-btn');
-    matchBtn.disabled = true;
-    statusMsg.innerText = "Searching for an opponent...";
-
-    const waitingRef = database.ref('waitingRoom');
-    waitingRef.once('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            roomID = data.roomID;
-            waitingRef.remove();
-            const coinFlip = Math.random() < 0.5;
-            myColor = coinFlip ? 'w' : 'b';
-            database.ref('rooms/' + roomID + '/matchReady').set({ start: true, whitePlayerColor: myColor === 'w' ? 'joiner' : 'waiter' });
-            initGame(myColor);
-        } else {
-            roomID = "room_" + Math.floor(Math.random() * 1000000);
-            waitingRef.set({ roomID: roomID });
-            database.ref('rooms/' + roomID + '/matchReady').on('value', (s) => {
-                const r = s.val();
-                if (r && r.start) { myColor = r.whitePlayerColor === 'waiter' ? 'w' : 'b'; initGame(myColor); }
-            });
+function updateCaptures() {
+    let capturedByW = [], capturedByB = [], wScore = 0, bScore = 0;
+    game.history({verbose: true}).forEach(m => {
+        if (m.captured) {
+            let v = pieceValues[m.captured];
+            if (m.color === 'w') { capturedByW.push(pieceIcons[m.captured.toUpperCase()]); wScore += v; }
+            else { capturedByB.push(pieceIcons[m.captured]); bScore += v; }
         }
     });
+    const diff = wScore - bScore;
+    document.getElementById('white-captured').innerHTML = capturedByW.join(' ') + (diff > 0 ? `<span class="score-diff">+${diff}</span>` : '');
+    document.getElementById('black-captured').innerHTML = capturedByB.join(' ') + (diff < 0 ? `<span class="score-diff">+${Math.abs(diff)}</span>` : '');
 }
 
-function initGame(color) {
-    playSound('snd-game-start');
-    document.getElementById('setup-section').style.display = 'none';
-    document.getElementById('timer-area').style.visibility = 'visible';
-    document.getElementById('draw-btn').disabled = false;
-    document.getElementById('resign-btn').disabled = false;
-    if (color === 'b') board.orientation('black');
-    listenToGameUpdates();
+// 3. MOVEMENT & PROMOTION
+function onDrop(source, target) {
+    let move = game.move({ from: source, to: target, promotion: 'q' });
+    if (move === null) return 'snapback';
+    game.undo(); // Undo the auto-queen to check for actual choice
+    
+    let isProm = (move.color === 'w' && target[1] === '8' && move.piece === 'p') || (move.color === 'b' && target[1] === '1' && move.piece === 'p');
+    if (isProm) {
+        pendingMove = { from: source, to: target };
+        document.getElementById('promotion-modal').style.display = 'block';
+        return 'snapback';
+    }
+    afterMoveActions(game.move({ from: source, to: target }));
 }
 
-// 4. CLICK & DRAG LOGIC
-function removeGreyDots() { 
-    $('#board .square-55d63').removeClass('highlight-selected');
-    $('#board .square-55d63 .dot').remove(); 
-}
-
-function greyDot(square) {
-    var $square = $('#board .square-' + square);
-    $square.append('<span class="dot"></span>');
+function selectPromotion(pType) {
+    document.getElementById('promotion-modal').style.display = 'none';
+    let move = game.move({ from: pendingMove.from, to: pendingMove.to, promotion: pType });
+    afterMoveActions(move);
+    board.position(game.fen());
 }
 
 function onSquareClick(square) {
     if (isGameOver || !myColor || game.turn() !== myColor) return;
-    if (currentMoveIndex !== gameHistory.length - 1) return;
-
-    // If a square is already selected, try to move
     if (selectedSquare) {
-        var move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
-        
-        if (move === null) {
-            // Check if user clicked another of their own pieces to switch selection
-            var piece = game.get(square);
-            if (piece && piece.color === myColor) {
-                selectedSquare = square;
-                showLegalMoves(square);
-            } else {
-                selectedSquare = null;
-                removeGreyDots();
-            }
-        } else {
-            // Valid Click Move
-            selectedSquare = null;
-            removeGreyDots();
-            afterMoveActions(move);
+        let isProm = (game.get(selectedSquare).type === 'p') && ((myColor === 'w' && square[1] === '8') || (myColor === 'b' && square[1] === '1'));
+        if (isProm && game.moves({square: selectedSquare}).some(m => m.includes(square))) {
+            pendingMove = { from: selectedSquare, to: square };
+            document.getElementById('promotion-modal').style.display = 'block';
+            selectedSquare = null; removeGreyDots(); return;
         }
-    } else {
-        // First click: select piece
-        var piece = game.get(square);
-        if (piece && piece.color === myColor) {
-            selectedSquare = square;
-            showLegalMoves(square);
-        }
-    }
-}
-
-function showLegalMoves(square) {
-    removeGreyDots();
-    $('#board .square-' + square).addClass('highlight-selected');
-    var moves = game.moves({ square: square, verbose: true });
-    if (moves.length === 0) return;
-    for (var i = 0; i < moves.length; i++) { greyDot(moves[i].to); }
-}
-
-function onDrop(source, target) {
-    var move = game.move({ from: source, to: target, promotion: 'q' });
-    if (move === null) return 'snapback';
-    selectedSquare = null;
-    removeGreyDots();
-    afterMoveActions(move);
+        let move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+        if (move) { selectedSquare = null; removeGreyDots(); afterMoveActions(move); board.position(game.fen()); } 
+        else { let p = game.get(square); if(p?.color === myColor) { selectedSquare = square; showLegalMoves(square); } else { selectedSquare = null; removeGreyDots(); } }
+    } else { let p = game.get(square); if(p?.color === myColor) { selectedSquare = square; showLegalMoves(square); } }
 }
 
 function afterMoveActions(move) {
     if (move.captured) playSound('snd-capture');
     else if (game.in_check()) playSound('snd-check');
     else playSound('snd-move');
-
     database.ref('rooms/' + roomID + '/game').set({ fen: game.fen(), pgn: game.pgn(), timers: timers });
     updateGameState();
 }
 
-var config = {
-    draggable: true,
-    position: 'start',
-    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
-    onDragStart: (s, p) => {
-        if (isGameOver || !myColor) return false;
-        if (currentMoveIndex !== gameHistory.length - 1) return false;
-        if (p.search(new RegExp('^' + (myColor === 'w' ? 'b' : 'w'))) !== -1) return false;
-        if (game.turn() !== myColor) return false;
-    },
-    onDrop: onDrop,
-    onSnapEnd: () => { board.position(game.fen()); }
-};
-board = Chessboard('board', config);
-
-// Add Click Listener to squares
-$('#board').on('click', '.square-55d63', function() {
-    var square = $(this).attr('data-square');
-    onSquareClick(square);
-});
-
-// 5. FIREBASE & TIMERS
-function listenToGameUpdates() {
-    database.ref('rooms/' + roomID + '/game').on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.fen) {
-            const isNewMove = data.fen !== game.fen();
-            game.load(data.fen);
-            if (data.timers) timers = data.timers;
-            if (!gameHistory.includes(data.fen)) gameHistory.push(data.fen);
-            currentMoveIndex = gameHistory.length - 1;
-            board.position(data.fen);
-            
-            if (isNewMove) {
-                const h = game.history({verbose: true});
-                const last = h[h.length - 1];
-                if (game.in_check()) playSound('snd-check');
-                else if (last && last.captured) playSound('snd-capture');
-                else playSound('snd-move');
-            }
-            updateGameState();
-            updateTimerDisplay();
-            if (data.pgn) updateMoveList(data.pgn);
-        }
-    });
-
-    database.ref('rooms/' + roomID + '/status').on('value', (snapshot) => {
-        const d = snapshot.val();
-        if (!d) return;
-        if (['resign', 'timeout', 'drawAccepted'].includes(d.type) || game.game_over()) { if (!isGameOver) playSound('snd-game-end'); }
-        if (d.type === 'resign') showGameOver('resign', d.by);
-        if (d.type === 'timeout') showGameOver('timeout', d.by);
-        if (d.type === 'drawOffer' && d.by !== myColor) document.getElementById('draw-offer-area').style.display = 'block';
-        if (d.type === 'drawAccepted') showGameOver('draw');
-        if (d.type === 'newGameStarted') resetLocalGame();
-    });
-
-    database.ref('rooms/' + roomID + '/chat').on('child_added', (snapshot) => {
-        const msg = snapshot.val();
-        displayMessage(msg.user, msg.text);
-        if (msg.user !== (myColor === 'w' ? "White" : "Black")) playSound('snd-msg');
-    });
-}
-
-function startTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-        if (isGameOver) return;
-        timers[game.turn()]--;
-        updateTimerDisplay();
-        if (timers[game.turn()] <= 0) {
-            clearInterval(timerInterval);
-            database.ref('rooms/' + roomID + '/status').set({ type: 'timeout', by: game.turn() });
-        }
-    }, 1000);
-}
-
-function updateTimerDisplay() {
-    document.getElementById('white-timer').innerText = `White: ${formatTime(timers.w)}`;
-    document.getElementById('black-timer').innerText = `Black: ${formatTime(timers.b)}`;
-    document.getElementById('white-timer').classList.toggle('active', game.turn() === 'w');
-    document.getElementById('black-timer').classList.toggle('active', game.turn() === 'b');
-}
-
-function formatTime(s) { return `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`; }
-
-function showGameOver(type, detail) {
-    if (isGameOver) return;
-    isGameOver = true; clearInterval(timerInterval); playSound('snd-game-end');
-    let winner = "Draw", reason = "Game Over";
-    if (type === 'resign') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = "Resignation"; }
-    else if (type === 'timeout') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = "Time out"; }
-    else { winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black" : "White") + " Wins!" : "Draw"; reason = game.in_checkmate() ? "Checkmate" : "Draw"; }
-    document.getElementById('winner-text').innerText = winner;
-    document.getElementById('reason-text').innerText = reason;
-    document.getElementById('game-over-modal').style.display = 'block';
-}
-
+// 4. GAME STATE & DRAW RULES
 function updateGameState() {
     $('.square-55d63').removeClass('highlight-check highlight-last-move');
     const h = game.history({ verbose: true });
@@ -255,67 +87,96 @@ function updateGameState() {
         const k = findKing(game.turn());
         $(`.square-${k}`).addClass('highlight-check');
     }
+    updateCaptures();
+    checkDrawRules();
     if (game.game_over()) showGameOver();
     else if (roomID) startTimer();
 }
 
-function findKing(c) {
-    for (let r = 0; r < 8; r++) {
-        for (let c2 = 0; c2 < 8; c2++) {
-            const sq = String.fromCharCode(97 + c2) + (8 - r);
-            const p = game.get(sq);
-            if (p && p.type === 'k' && p.color === c) return sq;
-        }
+function checkDrawRules() {
+    if (isGameOver) return;
+    let reason = "";
+    if (game.in_threefold_repetition()) reason = "Threefold Repetition";
+    else if (game.in_draw()) {
+        if (game.insufficient_material()) reason = "Insufficient Material";
+        else if (game.in_stalemate()) reason = "Stalemate";
+        else reason = "50-Move Rule";
     }
+    if (reason) showGameOver('draw', reason);
 }
 
-// 6. UI ACTIONS
-function sendMessage() {
-    const input = document.getElementById('chatInput');
-    if (!input.value.trim() || !roomID) return;
-    database.ref('rooms/' + roomID + '/chat').push({ user: myColor === 'w' ? "White" : "Black", text: input.value });
-    input.value = '';
-}
-function displayMessage(user, text) {
-    const chatBox = document.getElementById('chat-messages');
-    const div = document.createElement('div');
-    div.className = 'chat-msg';
-    div.innerHTML = `<b>${user}:</b> ${text}`;
-    chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-function updateMoveList(pgn) {
-    const list = document.getElementById('move-list');
-    list.innerHTML = '';
-    const moves = pgn.split(/\d+\./).filter(Boolean);
-    moves.forEach((m, i) => {
-        const d = document.createElement('div');
-        d.innerText = `${i + 1}. ${m.trim()}`;
-        list.appendChild(d);
+// 5. FIREBASE & UI
+var config = { draggable: true, position: 'start', pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png', onDragStart: (s,p) => { if(isGameOver || !myColor || game.turn() !== myColor || p.search(new RegExp('^' + (myColor === 'w' ? 'b' : 'w'))) !== -1) return false; }, onDrop: onDrop, onSnapEnd: () => { board.position(game.fen()); } };
+board = Chessboard('board', config);
+$('#board').on('click', '.square-55d63', function() { onSquareClick($(this).attr('data-square')); });
+
+function listenToGameUpdates() {
+    database.ref('rooms/' + roomID + '/game').on('value', (s) => {
+        const d = s.val();
+        if (d && d.fen && d.fen !== game.fen()) {
+            game.load(d.fen); if (d.timers) timers = d.timers;
+            gameHistory.push(d.fen); currentMoveIndex = gameHistory.length - 1;
+            board.position(d.fen); updateGameState(); updateTimerDisplay(); updateMoveList(d.pgn || "");
+        }
     });
-    list.scrollTop = list.scrollHeight;
+    database.ref(`rooms/${roomID}/spectators`).on('value', (s) => {
+        document.getElementById('spectator-badge').style.display = 'inline-block';
+        document.getElementById('spectator-count').innerText = s.val() ? Object.keys(s.val()).length : 0;
+    });
+    database.ref('rooms/' + roomID + '/status').on('value', (s) => {
+        if(s.val()?.type === 'timeout') showGameOver('timeout', s.val().by);
+        if(s.val()?.type === 'resign') showGameOver('resign', s.val().by);
+    });
+    database.ref('rooms/' + roomID + '/chat').on('child_added', (s) => { displayMessage(s.val().user, s.val().text); playSound('snd-msg'); });
 }
-function resetLocalGame() {
-    game = new Chess(); gameHistory = [game.fen()]; currentMoveIndex = 0; isGameOver = false;
-    timers = { w: 600, b: 600 }; board.position('start');
-    document.getElementById('game-over-modal').style.display = 'none';
-    updateGameState(); updateTimerDisplay();
+
+// MATCHMAKING & HELPERS
+function startMatchmaking() {
+    unlockAudio();
+    database.ref('waitingRoom').once('value', (s) => {
+        const d = s.val();
+        if (d) { roomID = d.roomID; database.ref('waitingRoom').remove(); myColor = Math.random() < 0.5 ? 'w' : 'b'; database.ref('rooms/' + roomID + '/matchReady').set({ start: true, whitePlayerColor: myColor === 'w' ? 'joiner' : 'waiter' }); initGame(myColor); }
+        else { roomID = "room_" + Math.floor(Math.random() * 1000000); database.ref('waitingRoom').set({ roomID: roomID }); database.ref('rooms/' + roomID + '/matchReady').on('value', (ss) => { if(ss.val()?.start){ myColor = ss.val().whitePlayerColor === 'waiter' ? 'w' : 'b'; initGame(myColor); database.ref('rooms/' + roomID + '/matchReady').off(); } }); }
+    });
 }
-function requestNewGame() { database.ref('rooms/' + roomID + '/status').set({ type: 'rematchRequest', by: myColor }); }
+
+function initGame(c) { 
+    document.getElementById('setup-section').style.display = 'none'; 
+    document.getElementById('timer-area').style.visibility = 'visible';
+    document.getElementById('draw-btn').disabled = false; document.getElementById('resign-btn').disabled = false;
+    if(c === 'b') board.orientation('black'); trackPresence(); listenToGameUpdates(); playSound('snd-game-start'); 
+}
+
+function showGameOver(type, detail) {
+    if (isGameOver) return;
+    isGameOver = true; clearInterval(timerInterval); playSound('snd-game-end');
+    let win = "Draw", res = detail || "Game Over";
+    if (type === 'resign') { win = (detail === 'w' ? "Black" : "White") + " Wins!"; res = "Resignation"; }
+    else if (type === 'timeout') { win = (detail === 'w' ? "Black" : "White") + " Wins!"; res = "Time out"; }
+    else if (game.in_checkmate()) { win = (game.turn() === 'w' ? "Black" : "White") + " Wins!"; res = "Checkmate"; }
+    document.getElementById('winner-text').innerText = win;
+    document.getElementById('reason-text').innerText = res;
+    document.getElementById('game-over-modal').style.display = 'block';
+}
+
+function trackPresence() { const p = database.ref(`rooms/${roomID}/spectators`).push(); p.onDisconnect().remove(); p.set(true); }
+function showLegalMoves(s) { removeGreyDots(); $('#board .square-' + s).addClass('highlight-selected'); game.moves({square:s, verbose:true}).forEach(m => $('#board .square-'+m.to).append('<span class="dot"></span>')); }
+function removeGreyDots() { $('#board .square-55d63').removeClass('highlight-selected'); $('.dot').remove(); }
+function unlockAudio() { ['snd-move','snd-capture','snd-check','snd-game-start','snd-game-end','snd-msg'].forEach(id => { const a = document.getElementById(id); if(a){ a.play().then(()=> { a.pause(); a.currentTime=0; }).catch(()=>{}); } }); }
+function playSound(id) { if(soundEnabled) { const s = document.getElementById(id); if(s){ s.currentTime=0; s.play().catch(()=>{}); } } }
+function startTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(() => { if (!isGameOver) { timers[game.turn()]--; updateTimerDisplay(); if (timers[game.turn()] <= 0 && myColor) database.ref('rooms/' + roomID + '/status').set({ type: 'timeout', by: game.turn() }); } }, 1000); }
+function updateTimerDisplay() { document.getElementById('white-timer').innerText = `White: ${formatTime(timers.w)}`; document.getElementById('black-timer').innerText = `Black: ${formatTime(timers.b)}`; }
+function formatTime(s) { return `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`; }
+function findKing(c) { for(let r=0; r<8; r++) for(let c2=0; c2<8; c2++){ let sq = String.fromCharCode(97+c2)+(8-r); let p=game.get(sq); if(p?.type==='k' && p.color===c) return sq; } }
 function toggleTheme() { document.body.classList.toggle('dark-mode'); }
 function flipBoard() { board.flip(); }
-function closeModal() { document.getElementById('game-over-modal').style.display = 'none'; }
+function sendMessage() { const i = document.getElementById('chatInput'); if(i.value.trim() && roomID) { database.ref('rooms/'+roomID+'/chat').push({user: myColor ? (myColor==='w'?"White":"Black"):"Spectator", text: i.value}); i.value=''; } }
+function displayMessage(u, t) { const b = document.getElementById('chat-messages'); const d = document.createElement('div'); d.innerHTML = `<b>${u}:</b> ${t}`; b.appendChild(d); b.scrollTop = b.scrollHeight; }
+function updateMoveList(pgn) { const l = document.getElementById('move-list'); l.innerHTML = ''; pgn.split(/\d+\./).filter(Boolean).forEach((m,i) => { const d=document.createElement('div'); d.innerText=`${i+1}. ${m.trim()}`; l.appendChild(d); }); l.scrollTop=l.scrollHeight; }
 function toggleHighlight() { highlightEnabled = !highlightEnabled; updateGameState(); }
 function prevMove() { if (currentMoveIndex > 0) { currentMoveIndex--; board.position(gameHistory[currentMoveIndex]); } }
 function nextMove() { if (currentMoveIndex < gameHistory.length - 1) { currentMoveIndex++; board.position(gameHistory[currentMoveIndex]); } }
 function resignGame() { if (confirm("Resign?")) database.ref('rooms/' + roomID + '/status').set({ type: 'resign', by: myColor }); }
 function offerDraw() { database.ref('rooms/' + roomID + '/status').set({ type: 'drawOffer', by: myColor }); }
-function handleDraw(acc) {
-    document.getElementById('draw-offer-area').style.display = 'none';
-    if (acc) database.ref('rooms/' + roomID + '/status').set({ type: 'drawAccepted' });
-}
-function toggleFullScreen() {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-    else if (document.exitFullscreen) document.exitFullscreen();
-}
+function toggleFullScreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
 document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
