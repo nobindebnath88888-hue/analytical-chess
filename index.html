@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analytical Chess - Matchmaking & Sounds</title>
+    <title>Grandmaster Arena - 10 Min Blitz</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -20,7 +20,7 @@
     </div>
 
     <div class="container">
-        <h2>Strategy Hub</h2>
+        <h1>Strategy Hub</h1>
         
         <div id="timer-area" class="timer-container" style="visibility: hidden;">
             <div id="white-timer" class="timer">White: 10:00</div>
@@ -30,6 +30,7 @@
         <div class="controls">
             <button id="theme-toggle" onclick="toggleTheme()">🌙 Theme</button>
             <button id="sound-toggle" onclick="toggleSound()">🔊 Sound: ON</button>
+            <button id="full-screen" onclick="toggleFullScreen()">📺 Fullscreen</button>
             <button id="highlight-toggle" onclick="toggleHighlight()">🎯 King Highlight</button>
             <button id="flip-toggle" onclick="flipBoard()">🔄 Flip</button>
             <button id="draw-btn" onclick="offerDraw()" disabled>🤝 Draw</button>
@@ -43,8 +44,8 @@
         </div>
 
         <div id="setup-section">
-            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 30px; font-size: 18px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer;">Play New Game</button>
-            <p id="match-status" style="margin-top:10px; font-weight: bold;"></p>
+            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer;">Play New Game</button>
+            <p id="match-status" style="margin-top:15px; font-weight: bold; min-height: 24px;"></p>
         </div>
 
         <div class="game-layout">
