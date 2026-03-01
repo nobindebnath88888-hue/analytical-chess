@@ -6,9 +6,9 @@
     --border: #dddddd;
     --modal-bg: rgba(0,0,0,0.5);
     --check-color: #ff4d4d;
-    /* Board Colors */
-    --light-square: #ffffff;
-    --dark-square: #5c7fba; /* A nice professional Blue */
+    /* Dark Blue Board Colors */
+    --light-square: #f0f2f5;
+    --dark-square: #2b4a7d; 
 }
 
 body.dark-mode {
@@ -39,14 +39,12 @@ body {
     color: var(--text);
 }
 
-/* BLUE AND WHITE BOARD OVERRIDE */
+/* DARK BLUE AND WHITE BOARD OVERRIDE */
 .white-1e1d7 {
     background-color: var(--light-square) !important;
-    color: var(--dark-square);
 }
 .black-3c85d {
     background-color: var(--dark-square) !important;
-    color: var(--light-square);
 }
 
 .game-layout {
