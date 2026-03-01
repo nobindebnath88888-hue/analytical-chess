@@ -10,14 +10,11 @@
     --dark-square: #2b4a7d; 
     --resign: #d32f2f;
     --draw: #6c757d;
+    --last-move: rgba(255, 255, 0, 0.4);
 }
 
 body.dark-mode {
-    --bg: #121212;
-    --text: #e0e0e0;
-    --box: #1e1e1e;
-    --border: #333333;
-    --modal-bg: rgba(0,0,0,0.8);
+    --bg: #121212; --text: #e0e0e0; --box: #1e1e1e; --border: #333333; --modal-bg: rgba(0,0,0,0.8);
 }
 
 body { background-color: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; transition: 0.3s; margin: 0; padding: 20px; }
@@ -25,13 +22,7 @@ body { background-color: var(--bg); color: var(--text); font-family: 'Segoe UI',
 .controls { margin-bottom: 15px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
 
 #theme-toggle, #highlight-toggle, #flip-toggle, #resign-btn, #draw-btn { 
-    padding: 8px 12px; 
-    cursor: pointer; 
-    border-radius: 5px; 
-    border: 1px solid var(--border); 
-    background: var(--box); 
-    color: var(--text); 
-    font-size: 13px;
+    padding: 8px 12px; cursor: pointer; border-radius: 5px; border: 1px solid var(--border); background: var(--box); color: var(--text); font-size: 13px;
 }
 
 #resign-btn:hover { background: var(--resign); color: white; }
@@ -41,16 +32,13 @@ body { background-color: var(--bg); color: var(--text); font-family: 'Segoe UI',
 .white-1e1d7 { background-color: var(--light-square) !important; }
 .black-3c85d { background-color: var(--dark-square) !important; }
 
+/* HIGHLIGHTS */
+.highlight-last-move { box-shadow: inset 0 0 3px 3px var(--last-move); }
+.highlight-check { box-shadow: inset 0 0 3px 3px var(--check-color); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%, 100% { box-shadow: inset 0 0 3px 3px var(--check-color); } 50% { box-shadow: inset 0 0 10px 10px var(--check-color); } }
+
 /* MOVE HINT DOTS */
-.dot {
-    height: 12px; width: 12px;
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: 50%;
-    display: inline-block;
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-}
+.dot { height: 12px; width: 12px; background-color: rgba(0, 0, 0, 0.2); border-radius: 50%; display: inline-block; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 
 .nav-controls { margin-top: 10px; display: flex; justify-content: center; gap: 10px; }
 .nav-controls button { padding: 10px 25px; font-size: 18px; cursor: pointer; background: var(--accent); color: white; border: none; border-radius: 5px; }
@@ -63,9 +51,6 @@ body { background-color: var(--bg); color: var(--text); font-family: 'Segoe UI',
 #chatInput { flex-grow: 1; border: none; padding: 10px; background: transparent; color: var(--text); }
 .chat-input-area button { background: var(--accent); color: white; border: none; padding: 0 15px; cursor: pointer; }
 
-/* HIGHLIGHTS & MODALS */
-.highlight-check { box-shadow: inset 0 0 3px 3px var(--check-color); animation: pulse 1.5s infinite; }
-@keyframes pulse { 0%, 100% { box-shadow: inset 0 0 3px 3px var(--check-color); } 50% { box-shadow: inset 0 0 10px 10px var(--check-color); } }
 .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: var(--modal-bg); }
 .modal-content { background-color: var(--bg); margin: 15% auto; padding: 30px; border: 2px solid var(--accent); width: 300px; border-radius: 15px; text-align: center; }
 .modal-content button { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 15px; }
