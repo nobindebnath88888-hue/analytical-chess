@@ -6,6 +6,9 @@
     --border: #dddddd;
     --modal-bg: rgba(0,0,0,0.5);
     --check-color: #ff4d4d;
+    /* Board Colors */
+    --light-square: #ffffff;
+    --dark-square: #5c7fba; /* A nice professional Blue */
 }
 
 body.dark-mode {
@@ -25,7 +28,6 @@ body {
 }
 
 .container { max-width: 900px; margin: auto; text-align: center; }
-
 .controls { margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
 
 #theme-toggle, #highlight-toggle {
@@ -35,6 +37,16 @@ body {
     border: 1px solid var(--border);
     background: var(--box);
     color: var(--text);
+}
+
+/* BLUE AND WHITE BOARD OVERRIDE */
+.white-1e1d7 {
+    background-color: var(--light-square) !important;
+    color: var(--dark-square);
+}
+.black-3c85d {
+    background-color: var(--dark-square) !important;
+    color: var(--light-square);
 }
 
 .game-layout {
@@ -90,7 +102,6 @@ body {
     cursor: pointer;
 }
 
-/* KING HIGHLIGHT EFFECT */
 .highlight-check {
     box-shadow: inset 0 0 3px 3px var(--check-color);
     animation: pulse 1.5s infinite;
@@ -102,7 +113,6 @@ body {
     100% { box-shadow: inset 0 0 3px 3px var(--check-color); }
 }
 
-/* MODAL STYLES */
 .modal {
     display: none;
     position: fixed;
