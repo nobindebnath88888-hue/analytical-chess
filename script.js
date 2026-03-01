@@ -49,7 +49,7 @@ var config = {
 };
 board = Chessboard('board', config);
 
-// 3. ANALYTICAL UPDATES (Highlights & Game Over)
+// 3. ANALYTICAL UPDATES
 function updateGameState() {
     // Clear old highlights
     $('#board .square-55d63').removeClass('highlight-check');
