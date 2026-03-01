@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analytical Chess Platform - 10 Min Blitz</title>
+    <title>Analytical Chess - Matchmaking</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -22,8 +22,8 @@
     <div class="container">
         <h2>Strategy Hub</h2>
         
-        <div class="timer-container">
-            <div id="white-timer" class="timer active">White: 10:00</div>
+        <div id="timer-area" class="timer-container" style="visibility: hidden;">
+            <div id="white-timer" class="timer">White: 10:00</div>
             <div id="black-timer" class="timer">Black: 10:00</div>
         </div>
 
@@ -31,8 +31,8 @@
             <button id="theme-toggle" onclick="toggleTheme()">🌙 Theme</button>
             <button id="highlight-toggle" onclick="toggleHighlight()">🎯 King Highlight</button>
             <button id="flip-toggle" onclick="flipBoard()">🔄 Flip</button>
-            <button id="draw-btn" onclick="offerDraw()">🤝 Draw</button>
-            <button id="resign-btn" onclick="resignGame()">🏳️ Resign</button>
+            <button id="draw-btn" onclick="offerDraw()" disabled>🤝 Draw</button>
+            <button id="resign-btn" onclick="resignGame()" disabled>🏳️ Resign</button>
         </div>
 
         <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba; color: #856404;">
@@ -42,9 +42,8 @@
         </div>
 
         <div id="setup-section">
-            <input type="text" id="roomInput" placeholder="Enter Room ID">
-            <button onclick="joinRoom('w')">Join White</button>
-            <button onclick="joinRoom('b')">Join Black</button>
+            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 30px; font-size: 18px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer;">Play New Game</button>
+            <p id="match-status" style="margin-top:10px;"></p>
         </div>
 
         <div class="game-layout">
@@ -72,7 +71,7 @@
                 </div>
             </div>
         </div>
-        <p id="status">Waiting for players...</p>
+        <p id="status">Click "Play New Game" to begin.</p>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
