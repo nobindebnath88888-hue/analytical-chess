@@ -8,6 +8,8 @@
     --check-color: #ff4d4d;
     --light-square: #f0f2f5;
     --dark-square: #2b4a7d; 
+    --resign: #d32f2f;
+    --draw: #6c757d;
 }
 
 body.dark-mode {
@@ -20,8 +22,20 @@ body.dark-mode {
 
 body { background-color: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; transition: 0.3s; margin: 0; padding: 20px; }
 .container { max-width: 900px; margin: auto; text-align: center; }
-.controls { margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
-#theme-toggle, #highlight-toggle { padding: 8px 15px; cursor: pointer; border-radius: 5px; border: 1px solid var(--border); background: var(--box); color: var(--text); }
+.controls { margin-bottom: 15px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+
+#theme-toggle, #highlight-toggle, #flip-toggle, #resign-btn, #draw-btn { 
+    padding: 8px 12px; 
+    cursor: pointer; 
+    border-radius: 5px; 
+    border: 1px solid var(--border); 
+    background: var(--box); 
+    color: var(--text); 
+    font-size: 13px;
+}
+
+#resign-btn:hover { background: var(--resign); color: white; }
+#draw-btn:hover { background: var(--draw); color: white; }
 
 /* BOARD COLORS */
 .white-1e1d7 { background-color: var(--light-square) !important; }
@@ -29,8 +43,7 @@ body { background-color: var(--bg); color: var(--text); font-family: 'Segoe UI',
 
 /* MOVE HINT DOTS */
 .dot {
-    height: 12px;
-    width: 12px;
+    height: 12px; width: 12px;
     background-color: rgba(0, 0, 0, 0.2);
     border-radius: 50%;
     display: inline-block;
@@ -50,7 +63,7 @@ body { background-color: var(--bg); color: var(--text); font-family: 'Segoe UI',
 #chatInput { flex-grow: 1; border: none; padding: 10px; background: transparent; color: var(--text); }
 .chat-input-area button { background: var(--accent); color: white; border: none; padding: 0 15px; cursor: pointer; }
 
-/* MODALS & HIGHLIGHTS */
+/* HIGHLIGHTS & MODALS */
 .highlight-check { box-shadow: inset 0 0 3px 3px var(--check-color); animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%, 100% { box-shadow: inset 0 0 3px 3px var(--check-color); } 50% { box-shadow: inset 0 0 10px 10px var(--check-color); } }
 .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: var(--modal-bg); }
