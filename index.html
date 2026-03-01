@@ -19,8 +19,17 @@
     <div class="container">
         <h2>Strategy Hub</h2>
         <div class="controls">
-            <button id="theme-toggle" onclick="toggleTheme()">🌙 Switch Theme</button>
-            <button id="highlight-toggle" onclick="toggleHighlight()">🎯 Highlight King: ON</button>
+            <button id="theme-toggle" onclick="toggleTheme()">🌙 Theme</button>
+            <button id="highlight-toggle" onclick="toggleHighlight()">🎯 King Highlight</button>
+            <button id="flip-toggle" onclick="flipBoard()">🔄 Flip</button>
+            <button id="draw-btn" onclick="offerDraw()">🤝 Draw</button>
+            <button id="resign-btn" onclick="resignGame()">🏳️ Resign</button>
+        </div>
+
+        <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba;">
+            <span id="draw-offer-msg">Opponent offers a draw.</span>
+            <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer;">Accept</button>
+            <button onclick="handleDraw(false)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor:pointer;">Decline</button>
         </div>
 
         <div id="setup-section">
