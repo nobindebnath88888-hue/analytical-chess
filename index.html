@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analytical Chess Platform</title>
+    <title>Analytical Chess Platform - Gothic Edition</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -12,7 +12,10 @@
         <div class="modal-content">
             <h2 id="winner-text">Game Over</h2>
             <p id="reason-text"></p>
-            <button onclick="closeModal()">Close</button>
+            <div class="modal-actions">
+                <button onclick="requestNewGame()" style="background: #28a745;">🔄 Rematch</button>
+                <button onclick="closeModal()">Close</button>
+            </div>
         </div>
     </div>
 
@@ -26,16 +29,16 @@
             <button id="resign-btn" onclick="resignGame()">🏳️ Resign</button>
         </div>
 
-        <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba;">
+        <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba; color: #856404;">
             <span id="draw-offer-msg">Opponent offers a draw.</span>
-            <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer;">Accept</button>
+            <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer; margin-left: 10px;">Accept</button>
             <button onclick="handleDraw(false)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor:pointer;">Decline</button>
         </div>
 
         <div id="setup-section">
             <input type="text" id="roomInput" placeholder="Enter Room ID">
-            <button onclick="joinRoom('w')">Join as White</button>
-            <button onclick="joinRoom('b')">Join as Black</button>
+            <button onclick="joinRoom('w')">Join White</button>
+            <button onclick="joinRoom('b')">Join Black</button>
         </div>
 
         <div class="game-layout">
