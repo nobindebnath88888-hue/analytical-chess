@@ -1,16 +1,7 @@
 :root {
-    --bg: #ffffff;
-    --text: #333333;
-    --box: #f4f4f4;
-    --accent: #2b4a7d;
-    --border: #dddddd;
-    --modal-bg: rgba(0,0,0,0.5);
-    --check-color: #ff4d4d;
-    --light-square: #f0f2f5;
-    --dark-square: #2b4a7d; 
-    --resign: #d32f2f;
-    --draw: #6c757d;
-    --last-move: rgba(255, 255, 0, 0.4);
+    --bg: #ffffff; --text: #333333; --box: #f4f4f4; --accent: #2b4a7d; --border: #dddddd;
+    --modal-bg: rgba(0,0,0,0.5); --check-color: #ff4d4d; --light-square: #f0f2f5;
+    --dark-square: #2b4a7d; --resign: #d32f2f; --draw: #6c757d; --last-move: rgba(255, 255, 0, 0.4);
 }
 
 body.dark-mode {
