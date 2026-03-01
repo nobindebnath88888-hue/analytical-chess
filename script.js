@@ -16,14 +16,34 @@ var game = new Chess();
 var myColor = null;
 var roomID = null;
 var highlightEnabled = true;
+var currentMoveIndex = -1;
+var gameHistory = [];
 
-// 2. CHESS LOGIC
+// 2. CHESS LOGIC & HINTS
+function removeGreyDots () { $('#board .square-55d63 .dot').remove(); }
+
+function greyDot (square) {
+    var $square = $('#board .square-' + square);
+    $square.append('<span class="dot"></span>');
+}
+
+function onMouseoverSquare (square, piece) {
+    if (!piece || game.game_over()) return;
+    if ((myColor === 'w' && piece.search(/^b/) !== -1) || 
+        (myColor === 'b' && piece.search(/^w/) !== -1)) return;
+
+    var moves = game.moves({ square: square, verbose: true });
+    if (moves.length === 0) return;
+    for (var i = 0; i < moves.length; i++) { greyDot(moves[i].to); }
+}
+
+function onMouseoutSquare (square, piece) { removeGreyDots(); }
+
 function onDragStart (source, piece, position, orientation) {
     if (game.game_over()) return false;
-    if ((myColor === 'w' && piece.search(/^b/) !== -1) || 
-        (myColor === 'b' && piece.search(/^w/) !== -1)) return false;
-    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) || 
-        (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
+    if (currentMoveIndex !== gameHistory.length - 1) return false; // Lock dragging if viewing history
+    if ((myColor === 'w' && piece.search(/^b/) !== -1) || (myColor === 'b' && piece.search(/^w/) !== -1)) return false;
+    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) || (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
 }
 
 function onDrop (source, target) {
@@ -34,7 +54,6 @@ function onDrop (source, target) {
         fen: game.fen(),
         pgn: game.pgn()
     });
-    
     updateGameState();
 }
 
@@ -46,23 +65,35 @@ var config = {
     pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
     onDragStart: onDragStart,
     onDrop: onDrop,
-    onSnapEnd: onSnapEnd
+    onSnapEnd: onSnapEnd,
+    onMouseoverSquare: onMouseoverSquare,
+    onMouseoutSquare: onMouseoutSquare
 };
 board = Chessboard('board', config);
 
-// 3. ANALYTICAL UPDATES
-function updateGameState() {
-    // Clear old highlights
-    $('.square-55d63').removeClass('highlight-check');
+// 3. NAVIGATION LOGIC
+function prevMove() {
+    if (currentMoveIndex > 0) {
+        currentMoveIndex--;
+        board.position(gameHistory[currentMoveIndex]);
+    }
+}
 
+function nextMove() {
+    if (currentMoveIndex < gameHistory.length - 1) {
+        currentMoveIndex++;
+        board.position(gameHistory[currentMoveIndex]);
+    }
+}
+
+// 4. ANALYTICAL UPDATES
+function updateGameState() {
+    $('.square-55d63').removeClass('highlight-check');
     if (highlightEnabled && game.in_check()) {
         const kingPos = findKing(game.turn());
         $('.square-' + kingPos).addClass('highlight-check');
     }
-
-    if (game.game_over()) {
-        showGameOver();
-    }
+    if (game.game_over()) showGameOver();
 }
 
 function findKing(color) {
@@ -70,54 +101,46 @@ function findKing(color) {
         for (let c = 0; c < 8; c++) {
             const square = String.fromCharCode(97 + c) + (8 - r);
             const piece = game.get(square);
-            if (piece && piece.type === 'k' && piece.color === color) {
-                return square;
-            }
+            if (piece && piece.type === 'k' && piece.color === color) return square;
         }
     }
 }
 
 function showGameOver() {
-    let winner = "Draw";
-    let reason = "The game ended in a draw.";
-    if (game.in_checkmate()) {
-        winner = game.turn() === 'w' ? "Black Wins!" : "White Wins!";
-        reason = "Checkmate!";
-    } else if (game.in_stalemate()) {
-        reason = "Stalemate!";
-    }
+    let winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black Wins!" : "White Wins!") : "Draw";
     document.getElementById('winner-text').innerText = winner;
-    document.getElementById('reason-text').innerText = reason;
+    document.getElementById('reason-text').innerText = game.in_checkmate() ? "Checkmate!" : "Stalemate/Draw";
     document.getElementById('game-over-modal').style.display = 'block';
 }
 
 function closeModal() { document.getElementById('game-over-modal').style.display = 'none'; }
-
 function toggleHighlight() {
     highlightEnabled = !highlightEnabled;
     document.getElementById('highlight-toggle').innerText = "🎯 Highlight King: " + (highlightEnabled ? "ON" : "OFF");
     updateGameState();
 }
 
-// 4. ROOM & CHAT LOGIC
+// 5. ROOM & CHAT
 function joinRoom(color) {
     roomID = document.getElementById('roomInput').value;
-    if (!roomID) return alert("Please enter a Room ID");
-
+    if (!roomID) return alert("Enter Room ID");
     myColor = color;
     document.getElementById('setup-section').style.display = 'none';
-    document.getElementById('status').innerText = "Playing as " + (color === 'w' ? "White" : "Black");
     if(color === 'b') board.orientation('black');
 
     database.ref('rooms/' + roomID + '/game').on('value', (snapshot) => {
         const data = snapshot.val();
-        if (data) {
-            if (data.fen) { 
-                game.load(data.fen); 
-                board.position(data.fen); 
-                updateGameState(); 
+        if (data && data.fen) {
+            game.load(data.fen);
+            // Save FEN to history list if it's new
+            if (!gameHistory.includes(data.fen)) {
+                gameHistory.push(data.fen);
             }
-            if (data.pgn) { updateMoveList(data.pgn); }
+            // Real-time Snapback: Auto-jump to latest move
+            currentMoveIndex = gameHistory.length - 1;
+            board.position(data.fen);
+            updateGameState();
+            if (data.pgn) updateMoveList(data.pgn);
         }
     });
 
@@ -129,12 +152,8 @@ function joinRoom(color) {
 
 function sendMessage() {
     const input = document.getElementById('chatInput');
-    const text = input.value.trim();
-    if (!text || !roomID) return;
-    database.ref('rooms/' + roomID + '/chat').push({
-        user: myColor === 'w' ? "White" : "Black",
-        text: text
-    });
+    if (!input.value.trim() || !roomID) return;
+    database.ref('rooms/' + roomID + '/chat').push({ user: myColor === 'w' ? "White" : "Black", text: input.value });
     input.value = '';
 }
 
@@ -161,7 +180,4 @@ function updateMoveList(pgn) {
 }
 
 function toggleTheme() { document.body.classList.toggle('dark-mode'); }
-
-document.getElementById('chatInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
-});
+document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
