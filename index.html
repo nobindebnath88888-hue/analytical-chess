@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analytical Chess - Matchmaking</title>
+    <title>Analytical Chess - Matchmaking & Sounds</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -29,6 +29,7 @@
 
         <div class="controls">
             <button id="theme-toggle" onclick="toggleTheme()">🌙 Theme</button>
+            <button id="sound-toggle" onclick="toggleSound()">🔊 Sound: ON</button>
             <button id="highlight-toggle" onclick="toggleHighlight()">🎯 King Highlight</button>
             <button id="flip-toggle" onclick="flipBoard()">🔄 Flip</button>
             <button id="draw-btn" onclick="offerDraw()" disabled>🤝 Draw</button>
@@ -43,7 +44,7 @@
 
         <div id="setup-section">
             <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 30px; font-size: 18px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer;">Play New Game</button>
-            <p id="match-status" style="margin-top:10px;"></p>
+            <p id="match-status" style="margin-top:10px; font-weight: bold;"></p>
         </div>
 
         <div class="game-layout">
@@ -71,8 +72,14 @@
                 </div>
             </div>
         </div>
-        <p id="status">Click "Play New Game" to begin.</p>
     </div>
+
+    <audio id="snd-move" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-self.mp3"></audio>
+    <audio id="snd-capture" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/capture.mp3"></audio>
+    <audio id="snd-check" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-check.mp3"></audio>
+    <audio id="snd-game-start" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-start.mp3"></audio>
+    <audio id="snd-game-end" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-end.mp3"></audio>
+    <audio id="snd-msg" src="https://www.soundjay.com/buttons/sounds/button-16.mp3"></audio>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
