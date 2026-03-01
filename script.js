@@ -19,6 +19,10 @@ var currentMoveIndex = -1;
 var gameHistory = [];
 var isGameOver = false;
 
+// TIMER VARIABLES
+var timers = { w: 600, b: 600 }; // 10 minutes in seconds
+var timerInterval = null;
+
 // 2. CHESS LOGIC & HINTS
 function removeGreyDots () { $('#board .square-55d63 .dot').remove(); }
 function greyDot (square) {
@@ -45,7 +49,13 @@ function onDragStart (source, piece, position, orientation) {
 function onDrop (source, target) {
     var move = game.move({ from: source, to: target, promotion: 'q' });
     if (move === null) return 'snapback';
-    database.ref('rooms/' + roomID + '/game').set({ fen: game.fen(), pgn: game.pgn() });
+    
+    // Update Firebase with new position and current timers
+    database.ref('rooms/' + roomID + '/game').set({ 
+        fen: game.fen(), 
+        pgn: game.pgn(),
+        timers: timers 
+    });
     updateGameState();
 }
 
@@ -54,7 +64,6 @@ function onSnapEnd () { board.position(game.fen()); }
 var config = {
     draggable: true,
     position: 'start',
-    // WIKIPEDIA STANDARD PIECES
     pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
     onDragStart: onDragStart,
     onDrop: onDrop,
@@ -64,30 +73,36 @@ var config = {
 };
 board = Chessboard('board', config);
 
-// 3. ANALYTICAL UPDATES
-function updateGameState() {
-    $('.square-55d63').removeClass('highlight-check').removeClass('highlight-last-move');
-    const history = game.history({ verbose: true });
-    if (history.length > 0) {
-        const lastMove = history[history.length - 1];
-        $('.square-' + lastMove.from).addClass('highlight-last-move');
-        $('.square-' + lastMove.to).addClass('highlight-last-move');
-    }
-    if (highlightEnabled && game.in_check()) {
-        const kingPos = findKing(game.turn());
-        $('.square-' + kingPos).addClass('highlight-check');
-    }
-    if (game.game_over()) showGameOver();
+// 3. TIMER LOGIC
+function startTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        if (isGameOver) return clearInterval(timerInterval);
+        
+        let turn = game.turn();
+        timers[turn]--;
+
+        updateTimerDisplay();
+
+        if (timers[turn] <= 0) {
+            clearInterval(timerInterval);
+            database.ref('rooms/' + roomID + '/status').set({ type: 'timeout', by: turn });
+        }
+    }, 1000);
 }
 
-function findKing(color) {
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-            const square = String.fromCharCode(97 + c) + (8 - r);
-            const piece = game.get(square);
-            if (piece && piece.type === 'k' && piece.color === color) return square;
-        }
-    }
+function updateTimerDisplay() {
+    document.getElementById('white-timer').innerText = `White: ${formatTime(timers.w)}`;
+    document.getElementById('black-timer').innerText = `Black: ${formatTime(timers.b)}`;
+    
+    document.getElementById('white-timer').classList.toggle('active', game.turn() === 'w');
+    document.getElementById('black-timer').classList.toggle('active', game.turn() === 'b');
+}
+
+function formatTime(seconds) {
+    let min = Math.floor(seconds / 60);
+    let sec = seconds % 60;
+    return `${min}:${sec < 10 ? '0' : ''}${sec}`;
 }
 
 // 4. NAVIGATION & ACTIONS
@@ -122,21 +137,53 @@ function resetLocalGame() {
     gameHistory = [game.fen()];
     currentMoveIndex = 0;
     isGameOver = false;
+    timers = { w: 600, b: 600 };
     board.position('start');
     closeModal();
     updateGameState();
+    updateTimerDisplay();
     document.getElementById('move-list').innerHTML = '';
 }
 
 function showGameOver(type, detail) {
     isGameOver = true;
+    clearInterval(timerInterval);
     let winner = "Draw", reason = "The game ended.";
+    
     if (type === 'resign') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = (detail === 'w' ? "White" : "Black") + " resigned."; }
     else if (type === 'draw') reason = "Draw by agreement.";
+    else if (type === 'timeout') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = (detail === 'w' ? "White" : "Black") + " ran out of time."; }
     else { winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black Wins!" : "White Wins!") : "Draw"; reason = game.in_checkmate() ? "Checkmate!" : "Draw/Stalemate"; }
+    
     document.getElementById('winner-text').innerText = winner;
     document.getElementById('reason-text').innerText = reason;
     document.getElementById('game-over-modal').style.display = 'block';
+}
+
+function updateGameState() {
+    $('.square-55d63').removeClass('highlight-check').removeClass('highlight-last-move');
+    const history = game.history({ verbose: true });
+    if (history.length > 0) {
+        const lastMove = history[history.length - 1];
+        $('.square-' + lastMove.from).addClass('highlight-last-move');
+        $('.square-' + lastMove.to).addClass('highlight-last-move');
+    }
+    if (highlightEnabled && game.in_check()) {
+        const kingPos = findKing(game.turn());
+        $('.square-' + kingPos).addClass('highlight-check');
+    }
+    if (game.game_over()) showGameOver();
+    else startTimer(); // Restart timer interval on move
+}
+
+function findKing(color) {
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const square = String.fromCharCode(97 + c) + (8 - r);
+            const piece = game.get(square);
+            if (piece && piece.type === 'k' && piece.color === color) return square;
+        }
+    }
 }
 
 function closeModal() { document.getElementById('game-over-modal').style.display = 'none'; }
@@ -158,10 +205,12 @@ function joinRoom(color) {
         const data = snapshot.val();
         if (data && data.fen) {
             game.load(data.fen);
+            if (data.timers) timers = data.timers; // Sync timers from other player
             if (!gameHistory.includes(data.fen)) gameHistory.push(data.fen);
             currentMoveIndex = gameHistory.length - 1;
             board.position(data.fen);
             updateGameState();
+            updateTimerDisplay();
             if (data.pgn) updateMoveList(data.pgn);
         }
     });
@@ -170,11 +219,12 @@ function joinRoom(color) {
         const data = snapshot.val();
         if (!data) return;
         if (data.type === 'resign') showGameOver('resign', data.by);
+        if (data.type === 'timeout') showGameOver('timeout', data.by);
         if (data.type === 'drawOffer' && data.by !== myColor) document.getElementById('draw-offer-area').style.display = 'block';
         if (data.type === 'drawAccepted') showGameOver('draw');
         if (data.type === 'rematchRequest' && data.by !== myColor) {
             if(confirm("Opponent wants a rematch. Accept?")) {
-                database.ref('rooms/' + roomID + '/game').set({ fen: 'start', pgn: '' });
+                database.ref('rooms/' + roomID + '/game').set({ fen: 'start', pgn: '', timers: { w: 600, b: 600 } });
                 database.ref('rooms/' + roomID + '/status').set({ type: 'newGameStarted' });
             }
         }
