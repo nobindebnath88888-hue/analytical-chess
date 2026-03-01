@@ -7,7 +7,6 @@ const firebaseConfig = {
     messagingSenderId: "1068006653983",
     appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
-
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
@@ -15,6 +14,7 @@ var board = null;
 var game = new Chess();
 var myColor = null;
 var roomID = null;
+var soundEnabled = true;
 var highlightEnabled = true;
 var currentMoveIndex = -1;
 var gameHistory = [];
@@ -22,7 +22,22 @@ var isGameOver = false;
 var timers = { w: 600, b: 600 };
 var timerInterval = null;
 
-// 2. MATCHMAKING LOGIC
+// 2. SOUND MANAGER
+function playSound(id) {
+    if (!soundEnabled) return;
+    const sound = document.getElementById(id);
+    if (sound) {
+        sound.currentTime = 0;
+        sound.play().catch(e => console.log("Sound blocked by browser policy. Interact with page first."));
+    }
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    document.getElementById('sound-toggle').innerText = soundEnabled ? "🔊 Sound: ON" : "🔇 Sound: OFF";
+}
+
+// 3. MATCHMAKING
 function startMatchmaking() {
     const statusMsg = document.getElementById('match-status');
     const matchBtn = document.getElementById('match-btn');
@@ -33,30 +48,19 @@ function startMatchmaking() {
     
     waitingRef.once('value', (snapshot) => {
         const data = snapshot.val();
-        
         if (data) {
-            // Someone is waiting! Join their room.
             roomID = data.roomID;
-            waitingRef.remove(); // Clear waiting room
-            
-            // Randomly assign colors
+            waitingRef.remove();
             const coinFlip = Math.random() < 0.5;
             myColor = coinFlip ? 'w' : 'b';
-            const oppColor = myColor === 'w' ? 'b' : 'w';
-
-            // Signal to the waiting player that the match is starting
             database.ref('rooms/' + roomID + '/matchReady').set({
                 start: true,
                 whitePlayerColor: myColor === 'w' ? 'joiner' : 'waiter'
             });
-
             initGame(myColor);
         } else {
-            // No one waiting. Create a room and wait.
             roomID = "room_" + Math.floor(Math.random() * 1000000);
             waitingRef.set({ roomID: roomID });
-
-            // Listen for someone to join
             database.ref('rooms/' + roomID + '/matchReady').on('value', (snapshot) => {
                 const readyData = snapshot.val();
                 if (readyData && readyData.start) {
@@ -69,43 +73,26 @@ function startMatchmaking() {
 }
 
 function initGame(color) {
+    playSound('snd-game-start');
     document.getElementById('setup-section').style.display = 'none';
     document.getElementById('timer-area').style.visibility = 'visible';
     document.getElementById('draw-btn').disabled = false;
     document.getElementById('resign-btn').disabled = false;
-    document.getElementById('status').innerText = "Game Started! You are " + (color === 'w' ? "White" : "Black");
     
     if (color === 'b') board.orientation('black');
-    
     listenToGameUpdates();
 }
 
-// 3. CHESS & TIMER LOGIC (Preserved from previous version)
-function removeGreyDots () { $('#board .square-55d63 .dot').remove(); }
-function greyDot (square) {
-    var $square = $('#board .square-' + square);
-    $square.append('<span class="dot"></span>');
-}
-
-function onMouseoverSquare (square, piece) {
-    if (!piece || isGameOver) return;
-    if ((myColor === 'w' && piece.search(/^b/) !== -1) || (myColor === 'b' && piece.search(/^w/) !== -1)) return;
-    var moves = game.moves({ square: square, verbose: true });
-    for (var i = 0; i < moves.length; i++) { greyDot(moves[i].to); }
-}
-
-function onMouseoutSquare (square, piece) { removeGreyDots(); }
-
-function onDragStart (source, piece, position, orientation) {
-    if (isGameOver || !myColor) return false;
-    if (currentMoveIndex !== gameHistory.length - 1) return false; 
-    if ((myColor === 'w' && piece.search(/^b/) !== -1) || (myColor === 'b' && piece.search(/^w/) !== -1)) return false;
-    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) || (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
-}
-
+// 4. CHESS LOGIC
 function onDrop (source, target) {
-    var move = game.move({ from: source, to: target, promotion: 'q' });
+    const move = game.move({ from: source, to: target, promotion: 'q' });
     if (move === null) return 'snapback';
+    
+    // Play sound based on move type
+    if (move.captured) playSound('snd-capture');
+    else if (game.in_check()) playSound('snd-check');
+    else playSound('snd-move');
+
     database.ref('rooms/' + roomID + '/game').set({ fen: game.fen(), pgn: game.pgn(), timers: timers });
     updateGameState();
 }
@@ -116,21 +103,72 @@ var config = {
     draggable: true,
     position: 'start',
     pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
-    onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd,
-    onMouseoverSquare: onMouseoverSquare, onMouseoutSquare: onMouseoutSquare
+    onDragStart: (s, p) => {
+        if (isGameOver || !myColor) return false;
+        if (currentMoveIndex !== gameHistory.length - 1) return false; 
+        if ((myColor === 'w' && p.search(/^b/) !== -1) || (myColor === 'b' && p.search(/^w/) !== -1)) return false;
+        if ((game.turn() === 'w' && p.search(/^b/) !== -1) || (game.turn() === 'b' && p.search(/^w/) !== -1)) return false;
+    },
+    onDrop: onDrop,
+    onSnapEnd: onSnapEnd
 };
 board = Chessboard('board', config);
 
+// 5. FIREBASE & TIMERS
+function listenToGameUpdates() {
+    database.ref('rooms/' + roomID + '/game').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.fen) {
+            const isNewMove = data.fen !== game.fen();
+            game.load(data.fen);
+            if (data.timers) timers = data.timers;
+            if (!gameHistory.includes(data.fen)) gameHistory.push(data.fen);
+            currentMoveIndex = gameHistory.length - 1;
+            board.position(data.fen);
+            
+            if (isNewMove) {
+                // Play sounds for opponent's moves
+                if (game.in_check()) playSound('snd-check');
+                else if (game.history().length > 0 && game.history({verbose: true}).pop().captured) playSound('snd-capture');
+                else playSound('snd-move');
+            }
+
+            updateGameState();
+            updateTimerDisplay();
+            if (data.pgn) updateMoveList(data.pgn);
+        }
+    });
+
+    database.ref('rooms/' + roomID + '/status').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+        if (['resign', 'timeout', 'drawAccepted'].includes(data.type) || game.game_over()) {
+            if (!isGameOver) playSound('snd-game-end');
+        }
+        if (data.type === 'resign') showGameOver('resign', data.by);
+        if (data.type === 'timeout') showGameOver('timeout', data.by);
+        if (data.type === 'drawOffer' && data.by !== myColor) document.getElementById('draw-offer-area').style.display = 'block';
+        if (data.type === 'drawAccepted') showGameOver('draw');
+        if (data.type === 'newGameStarted') resetLocalGame();
+    });
+
+    database.ref('rooms/' + roomID + '/chat').on('child_added', (snapshot) => {
+        const msg = snapshot.val();
+        displayMessage(msg.user, msg.text);
+        if (msg.user !== (myColor === 'w' ? "White" : "Black")) playSound('snd-msg');
+    });
+}
+
+// 6. UI & HELPERS
 function startTimer() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-        if (isGameOver) return clearInterval(timerInterval);
-        let turn = game.turn();
-        timers[turn]--;
+        if (isGameOver) return;
+        timers[game.turn()]--;
         updateTimerDisplay();
-        if (timers[turn] <= 0) {
+        if (timers[game.turn()] <= 0) {
             clearInterval(timerInterval);
-            database.ref('rooms/' + roomID + '/status').set({ type: 'timeout', by: turn });
+            database.ref('rooms/' + roomID + '/status').set({ type: 'timeout', by: game.turn() });
         }
     }, 1000);
 }
@@ -142,94 +180,19 @@ function updateTimerDisplay() {
     document.getElementById('black-timer').classList.toggle('active', game.turn() === 'b');
 }
 
-function formatTime(seconds) {
-    let min = Math.floor(seconds / 60);
-    let sec = seconds % 60;
-    return `${min}:${sec < 10 ? '0' : ''}${sec}`;
-}
-
-// 4. FIREBASE LISTENERS
-function listenToGameUpdates() {
-    database.ref('rooms/' + roomID + '/game').on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.fen) {
-            game.load(data.fen);
-            if (data.timers) timers = data.timers;
-            if (!gameHistory.includes(data.fen)) gameHistory.push(data.fen);
-            currentMoveIndex = gameHistory.length - 1;
-            board.position(data.fen);
-            updateGameState();
-            updateTimerDisplay();
-            if (data.pgn) updateMoveList(data.pgn);
-        }
-    });
-
-    database.ref('rooms/' + roomID + '/status').on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
-        if (data.type === 'resign') showGameOver('resign', data.by);
-        if (data.type === 'timeout') showGameOver('timeout', data.by);
-        if (data.type === 'drawOffer' && data.by !== myColor) document.getElementById('draw-offer-area').style.display = 'block';
-        if (data.type === 'drawAccepted') showGameOver('draw');
-        if (data.type === 'newGameStarted') resetLocalGame();
-    });
-
-    database.ref('rooms/' + roomID + '/chat').on('child_added', (snapshot) => {
-        const msg = snapshot.val();
-        displayMessage(msg.user, msg.text);
-    });
-}
-
-// 5. UTILITY FUNCTIONS
-function updateGameState() {
-    $('.square-55d63').removeClass('highlight-check').removeClass('highlight-last-move');
-    const history = game.history({ verbose: true });
-    if (history.length > 0) {
-        const lastMove = history[history.length - 1];
-        $('.square-' + lastMove.from).addClass('highlight-last-move');
-        $('.square-' + lastMove.to).addClass('highlight-last-move');
-    }
-    if (highlightEnabled && game.in_check()) {
-        const kingPos = findKing(game.turn());
-        $('.square-' + kingPos).addClass('highlight-check');
-    }
-    if (game.game_over()) showGameOver();
-    else if (roomID) startTimer();
-}
-
-function findKing(color) {
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-            const square = String.fromCharCode(97 + c) + (8 - r);
-            const piece = game.get(square);
-            if (piece && piece.type === 'k' && piece.color === color) return square;
-        }
-    }
-}
+function formatTime(s) { return `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`; }
 
 function showGameOver(type, detail) {
     isGameOver = true;
     clearInterval(timerInterval);
-    let winner = "Draw", reason = "The game ended.";
-    if (type === 'resign') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = (detail === 'w' ? "White" : "Black") + " resigned."; }
-    else if (type === 'draw') reason = "Draw by agreement.";
-    else if (type === 'timeout') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = (detail === 'w' ? "White" : "Black") + " ran out of time."; }
-    else { winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black Wins!" : "White Wins!") : "Draw"; reason = game.in_checkmate() ? "Checkmate!" : "Draw/Stalemate"; }
+    playSound('snd-game-end');
+    let winner = "Draw", reason = "Game ended.";
+    if (type === 'resign') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = "Resignation."; }
+    else if (type === 'timeout') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = "Time out."; }
+    else { winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black Wins!" : "White Wins!") : "Draw"; reason = game.in_checkmate() ? "Checkmate!" : "Stalemate"; }
     document.getElementById('winner-text').innerText = winner;
     document.getElementById('reason-text').innerText = reason;
     document.getElementById('game-over-modal').style.display = 'block';
-}
-
-function resetLocalGame() {
-    game = new Chess();
-    gameHistory = [game.fen()];
-    currentMoveIndex = 0;
-    isGameOver = false;
-    timers = { w: 600, b: 600 };
-    board.position('start');
-    closeModal();
-    updateGameState();
-    updateTimerDisplay();
 }
 
 function sendMessage() {
@@ -248,35 +211,34 @@ function displayMessage(user, text) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-function updateMoveList(pgn) {
-    const moveList = document.getElementById('move-list');
-    moveList.innerHTML = '';
-    const moves = pgn.split(/\d+\./).filter(Boolean);
-    moves.forEach((m, i) => {
-        const div = document.createElement('div');
-        div.innerText = `${i + 1}. ${m.trim()}`;
-        moveList.appendChild(div);
-    });
-    moveList.scrollTop = moveList.scrollHeight;
+function updateGameState() {
+    $('.square-55d63').removeClass('highlight-check highlight-last-move');
+    const history = game.history({ verbose: true });
+    if (history.length > 0) {
+        const lastMove = history[history.length - 1];
+        $(`.square-${lastMove.from}, .square-${lastMove.to}`).addClass('highlight-last-move');
+    }
+    if (highlightEnabled && game.in_check()) {
+        const kingPos = findKing(game.turn());
+        $(`.square-${kingPos}`).addClass('highlight-check');
+    }
+    if (game.game_over()) showGameOver();
+    else if (roomID) startTimer();
 }
 
+function findKing(c) {
+    for (let r = 0; r < 8; r++) {
+        for (let c2 = 0; c2 < 8; c2++) {
+            const sq = String.fromCharCode(97 + c2) + (8 - r);
+            const p = game.get(sq);
+            if (p && p.type === 'k' && p.color === c) return sq;
+        }
+    }
+}
+
+function toggleTheme() { document.body.classList.toggle('dark-mode'); }
 function flipBoard() { board.flip(); }
 function closeModal() { document.getElementById('game-over-modal').style.display = 'none'; }
-function toggleTheme() { document.body.classList.toggle('dark-mode'); }
-function offerDraw() {
-    if (!roomID || isGameOver) return;
-    database.ref('rooms/' + roomID + '/status').set({ type: 'drawOffer', by: myColor });
-}
-function handleDraw(accepted) {
-    document.getElementById('draw-offer-area').style.display = 'none';
-    if (accepted) database.ref('rooms/' + roomID + '/status').set({ type: 'drawAccepted' });
-    else database.ref('rooms/' + roomID + '/status').set({ type: 'drawDeclined', by: myColor });
-}
-function resignGame() {
-    if (!roomID || isGameOver) return;
-    if (confirm("Resign?")) database.ref('rooms/' + roomID + '/status').set({ type: 'resign', by: myColor });
-}
 function prevMove() { if (currentMoveIndex > 0) { currentMoveIndex--; board.position(gameHistory[currentMoveIndex]); } }
 function nextMove() { if (currentMoveIndex < gameHistory.length - 1) { currentMoveIndex++; board.position(gameHistory[currentMoveIndex]); } }
-
 document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
