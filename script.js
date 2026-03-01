@@ -7,6 +7,7 @@ const firebaseConfig = {
     messagingSenderId: "1068006653983",
     appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
+
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
@@ -52,11 +53,11 @@ board = Chessboard('board', config);
 // 3. ANALYTICAL UPDATES
 function updateGameState() {
     // Clear old highlights
-    $('#board .square-55d63').removeClass('highlight-check');
+    $('.square-55d63').removeClass('highlight-check');
 
     if (highlightEnabled && game.in_check()) {
         const kingPos = findKing(game.turn());
-        $('#board .square-' + kingPos).addClass('highlight-check');
+        $('.square-' + kingPos).addClass('highlight-check');
     }
 
     if (game.game_over()) {
