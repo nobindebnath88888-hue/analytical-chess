@@ -7,7 +7,6 @@ const firebaseConfig = {
     messagingSenderId: "1068006653983",
     appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
-
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
@@ -18,30 +17,28 @@ var roomID = null;
 var highlightEnabled = true;
 var currentMoveIndex = -1;
 var gameHistory = [];
+var isGameOver = false;
 
 // 2. CHESS LOGIC & HINTS
 function removeGreyDots () { $('#board .square-55d63 .dot').remove(); }
-
 function greyDot (square) {
     var $square = $('#board .square-' + square);
     $square.append('<span class="dot"></span>');
 }
 
 function onMouseoverSquare (square, piece) {
-    if (!piece || game.game_over()) return;
+    if (!piece || isGameOver) return;
     if ((myColor === 'w' && piece.search(/^b/) !== -1) || 
         (myColor === 'b' && piece.search(/^w/) !== -1)) return;
-
     var moves = game.moves({ square: square, verbose: true });
-    if (moves.length === 0) return;
     for (var i = 0; i < moves.length; i++) { greyDot(moves[i].to); }
 }
 
 function onMouseoutSquare (square, piece) { removeGreyDots(); }
 
 function onDragStart (source, piece, position, orientation) {
-    if (game.game_over()) return false;
-    if (currentMoveIndex !== gameHistory.length - 1) return false; // Lock dragging if viewing history
+    if (isGameOver) return false;
+    if (currentMoveIndex !== gameHistory.length - 1) return false; 
     if ((myColor === 'w' && piece.search(/^b/) !== -1) || (myColor === 'b' && piece.search(/^w/) !== -1)) return false;
     if ((game.turn() === 'w' && piece.search(/^b/) !== -1) || (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
 }
@@ -49,11 +46,7 @@ function onDragStart (source, piece, position, orientation) {
 function onDrop (source, target) {
     var move = game.move({ from: source, to: target, promotion: 'q' });
     if (move === null) return 'snapback';
-
-    database.ref('rooms/' + roomID + '/game').set({
-        fen: game.fen(),
-        pgn: game.pgn()
-    });
+    database.ref('rooms/' + roomID + '/game').set({ fen: game.fen(), pgn: game.pgn() });
     updateGameState();
 }
 
@@ -71,18 +64,30 @@ var config = {
 };
 board = Chessboard('board', config);
 
-// 3. NAVIGATION LOGIC
-function prevMove() {
-    if (currentMoveIndex > 0) {
-        currentMoveIndex--;
-        board.position(gameHistory[currentMoveIndex]);
+// 3. NAVIGATION, FLIP, RESIGN, & DRAW
+function prevMove() { if (currentMoveIndex > 0) { currentMoveIndex--; board.position(gameHistory[currentMoveIndex]); } }
+function nextMove() { if (currentMoveIndex < gameHistory.length - 1) { currentMoveIndex++; board.position(gameHistory[currentMoveIndex]); } }
+function flipBoard() { board.flip(); }
+
+function resignGame() {
+    if (!roomID || isGameOver) return;
+    if (confirm("Resign the game?")) {
+        database.ref('rooms/' + roomID + '/status').set({ type: 'resign', by: myColor });
     }
 }
 
-function nextMove() {
-    if (currentMoveIndex < gameHistory.length - 1) {
-        currentMoveIndex++;
-        board.position(gameHistory[currentMoveIndex]);
+function offerDraw() {
+    if (!roomID || isGameOver) return;
+    database.ref('rooms/' + roomID + '/status').set({ type: 'drawOffer', by: myColor });
+    alert("Draw offer sent.");
+}
+
+function handleDraw(accepted) {
+    document.getElementById('draw-offer-area').style.display = 'none';
+    if (accepted) {
+        database.ref('rooms/' + roomID + '/status').set({ type: 'drawAccepted' });
+    } else {
+        database.ref('rooms/' + roomID + '/status').set({ type: 'drawDeclined', by: myColor });
     }
 }
 
@@ -106,17 +111,30 @@ function findKing(color) {
     }
 }
 
-function showGameOver() {
-    let winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black Wins!" : "White Wins!") : "Draw";
+function showGameOver(type, detail) {
+    isGameOver = true;
+    let winner = "Draw";
+    let reason = "The game ended.";
+
+    if (type === 'resign') {
+        winner = (detail === 'w' ? "Black" : "White") + " Wins!";
+        reason = (detail === 'w' ? "White" : "Black") + " resigned.";
+    } else if (type === 'draw') {
+        reason = "Draw by agreement.";
+    } else {
+        winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black Wins!" : "White Wins!") : "Draw";
+        reason = game.in_checkmate() ? "Checkmate!" : "Draw/Stalemate";
+    }
+
     document.getElementById('winner-text').innerText = winner;
-    document.getElementById('reason-text').innerText = game.in_checkmate() ? "Checkmate!" : "Stalemate/Draw";
+    document.getElementById('reason-text').innerText = reason;
     document.getElementById('game-over-modal').style.display = 'block';
 }
 
 function closeModal() { document.getElementById('game-over-modal').style.display = 'none'; }
 function toggleHighlight() {
     highlightEnabled = !highlightEnabled;
-    document.getElementById('highlight-toggle').innerText = "🎯 Highlight King: " + (highlightEnabled ? "ON" : "OFF");
+    document.getElementById('highlight-toggle').innerText = (highlightEnabled ? "🎯 King Highlight: ON" : "🎯 King Highlight: OFF");
     updateGameState();
 }
 
@@ -132,16 +150,23 @@ function joinRoom(color) {
         const data = snapshot.val();
         if (data && data.fen) {
             game.load(data.fen);
-            // Save FEN to history list if it's new
-            if (!gameHistory.includes(data.fen)) {
-                gameHistory.push(data.fen);
-            }
-            // Real-time Snapback: Auto-jump to latest move
+            if (!gameHistory.includes(data.fen)) gameHistory.push(data.fen);
             currentMoveIndex = gameHistory.length - 1;
             board.position(data.fen);
             updateGameState();
             if (data.pgn) updateMoveList(data.pgn);
         }
+    });
+
+    database.ref('rooms/' + roomID + '/status').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+        if (data.type === 'resign') showGameOver('resign', data.by);
+        if (data.type === 'drawOffer' && data.by !== myColor) {
+            document.getElementById('draw-offer-area').style.display = 'block';
+        }
+        if (data.type === 'drawAccepted') showGameOver('draw');
+        if (data.type === 'drawDeclined' && data.by !== myColor) alert("Draw offer declined.");
     });
 
     database.ref('rooms/' + roomID + '/chat').on('child_added', (snapshot) => {
@@ -172,7 +197,6 @@ function updateMoveList(pgn) {
     const moves = pgn.split(/\d+\./).filter(Boolean);
     moves.forEach((m, i) => {
         const div = document.createElement('div');
-        div.style.padding = "2px 0";
         div.innerText = `${i + 1}. ${m.trim()}`;
         moveList.appendChild(div);
     });
