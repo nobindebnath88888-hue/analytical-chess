@@ -30,7 +30,13 @@
         </div>
 
         <div class="game-layout">
-            <div id="board" style="width: 400px;"></div>
+            <div class="board-container">
+                <div id="board" style="width: 400px;"></div>
+                <div class="nav-controls">
+                    <button onclick="prevMove()"> < </button>
+                    <button onclick="nextMove()"> > </button>
+                </div>
+            </div>
             
             <div class="sidebar-container">
                 <div class="history-section">
