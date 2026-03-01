@@ -54,29 +54,31 @@ function onSnapEnd () { board.position(game.fen()); }
 var config = {
     draggable: true,
     position: 'start',
-    // GOTHIC THEME APPLIED HERE
-    pieceTheme: 'https://chessboardjs.com/img/chesspieces/gothic/{piece}.png',
+    // FIXED PIECE THEME LINK
+    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png', 
     onDragStart: onDragStart,
     onDrop: onDrop,
     onSnapEnd: onSnapEnd,
     onMouseoverSquare: onMouseoverSquare,
     onMouseoutSquare: onMouseoutSquare
 };
+
+// NOTE: If Gothic still doesn't load from the default host, use this custom pieceTheme function:
+config.pieceTheme = function (piece) {
+  return 'https://raw.githubusercontent.com/Clairvo/chessboardjs/master/img/chesspieces/gothic/' + piece + '.png';
+};
+
 board = Chessboard('board', config);
 
 // 3. ANALYTICAL UPDATES
 function updateGameState() {
     $('.square-55d63').removeClass('highlight-check').removeClass('highlight-last-move');
-
-    // Highlight Last Move
     const history = game.history({ verbose: true });
     if (history.length > 0) {
         const lastMove = history[history.length - 1];
         $('.square-' + lastMove.from).addClass('highlight-last-move');
         $('.square-' + lastMove.to).addClass('highlight-last-move');
     }
-
-    // Highlight King in Check
     if (highlightEnabled && game.in_check()) {
         const kingPos = findKing(game.turn());
         $('.square-' + kingPos).addClass('highlight-check');
@@ -114,6 +116,22 @@ function handleDraw(accepted) {
     document.getElementById('draw-offer-area').style.display = 'none';
     if (accepted) database.ref('rooms/' + roomID + '/status').set({ type: 'drawAccepted' });
     else database.ref('rooms/' + roomID + '/status').set({ type: 'drawDeclined', by: myColor });
+}
+
+function requestNewGame() {
+    if (!roomID) return;
+    database.ref('rooms/' + roomID + '/status').set({ type: 'rematchRequest', by: myColor });
+}
+
+function resetLocalGame() {
+    game = new Chess();
+    gameHistory = [game.fen()];
+    currentMoveIndex = 0;
+    isGameOver = false;
+    board.position('start');
+    closeModal();
+    updateGameState();
+    document.getElementById('move-list').innerHTML = '';
 }
 
 function showGameOver(type, detail) {
@@ -159,7 +177,15 @@ function joinRoom(color) {
         if (data.type === 'resign') showGameOver('resign', data.by);
         if (data.type === 'drawOffer' && data.by !== myColor) document.getElementById('draw-offer-area').style.display = 'block';
         if (data.type === 'drawAccepted') showGameOver('draw');
-        if (data.type === 'drawDeclined' && data.by !== myColor) alert("Draw offer declined.");
+        if (data.type === 'rematchRequest') {
+            if (data.by !== myColor) {
+                if(confirm("Opponent wants a rematch. Accept?")) {
+                    database.ref('rooms/' + roomID + '/game').set({ fen: 'start', pgn: '' });
+                    database.ref('rooms/' + roomID + '/status').set({ type: 'newGameStarted' });
+                }
+            }
+        }
+        if (data.type === 'newGameStarted') resetLocalGame();
     });
 
     database.ref('rooms/' + roomID + '/chat').on('child_added', (snapshot) => {
@@ -187,6 +213,7 @@ function displayMessage(user, text) {
 function updateMoveList(pgn) {
     const moveList = document.getElementById('move-list');
     moveList.innerHTML = '';
+    if(!pgn) return;
     const moves = pgn.split(/\d+\./).filter(Boolean);
     moves.forEach((m, i) => {
         const div = document.createElement('div');
