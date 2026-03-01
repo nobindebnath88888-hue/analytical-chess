@@ -28,8 +28,7 @@ function greyDot (square) {
 
 function onMouseoverSquare (square, piece) {
     if (!piece || isGameOver) return;
-    if ((myColor === 'w' && piece.search(/^b/) !== -1) || 
-        (myColor === 'b' && piece.search(/^w/) !== -1)) return;
+    if ((myColor === 'w' && piece.search(/^b/) !== -1) || (myColor === 'b' && piece.search(/^w/) !== -1)) return;
     var moves = game.moves({ square: square, verbose: true });
     for (var i = 0; i < moves.length; i++) { greyDot(moves[i].to); }
 }
@@ -55,7 +54,8 @@ function onSnapEnd () { board.position(game.fen()); }
 var config = {
     draggable: true,
     position: 'start',
-    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+    // GOTHIC THEME APPLIED HERE
+    pieceTheme: 'https://chessboardjs.com/img/chesspieces/gothic/{piece}.png',
     onDragStart: onDragStart,
     onDrop: onDrop,
     onSnapEnd: onSnapEnd,
@@ -64,36 +64,19 @@ var config = {
 };
 board = Chessboard('board', config);
 
-// 3. NAVIGATION, FLIP, RESIGN, & DRAW
-function prevMove() { if (currentMoveIndex > 0) { currentMoveIndex--; board.position(gameHistory[currentMoveIndex]); } }
-function nextMove() { if (currentMoveIndex < gameHistory.length - 1) { currentMoveIndex++; board.position(gameHistory[currentMoveIndex]); } }
-function flipBoard() { board.flip(); }
-
-function resignGame() {
-    if (!roomID || isGameOver) return;
-    if (confirm("Resign the game?")) {
-        database.ref('rooms/' + roomID + '/status').set({ type: 'resign', by: myColor });
-    }
-}
-
-function offerDraw() {
-    if (!roomID || isGameOver) return;
-    database.ref('rooms/' + roomID + '/status').set({ type: 'drawOffer', by: myColor });
-    alert("Draw offer sent.");
-}
-
-function handleDraw(accepted) {
-    document.getElementById('draw-offer-area').style.display = 'none';
-    if (accepted) {
-        database.ref('rooms/' + roomID + '/status').set({ type: 'drawAccepted' });
-    } else {
-        database.ref('rooms/' + roomID + '/status').set({ type: 'drawDeclined', by: myColor });
-    }
-}
-
-// 4. ANALYTICAL UPDATES
+// 3. ANALYTICAL UPDATES
 function updateGameState() {
-    $('.square-55d63').removeClass('highlight-check');
+    $('.square-55d63').removeClass('highlight-check').removeClass('highlight-last-move');
+
+    // Highlight Last Move
+    const history = game.history({ verbose: true });
+    if (history.length > 0) {
+        const lastMove = history[history.length - 1];
+        $('.square-' + lastMove.from).addClass('highlight-last-move');
+        $('.square-' + lastMove.to).addClass('highlight-last-move');
+    }
+
+    // Highlight King in Check
     if (highlightEnabled && game.in_check()) {
         const kingPos = findKing(game.turn());
         $('.square-' + kingPos).addClass('highlight-check');
@@ -111,21 +94,34 @@ function findKing(color) {
     }
 }
 
+// 4. NAVIGATION & MULTIPLAYER
+function prevMove() { if (currentMoveIndex > 0) { currentMoveIndex--; board.position(gameHistory[currentMoveIndex]); } }
+function nextMove() { if (currentMoveIndex < gameHistory.length - 1) { currentMoveIndex++; board.position(gameHistory[currentMoveIndex]); } }
+function flipBoard() { board.flip(); }
+
+function resignGame() {
+    if (!roomID || isGameOver) return;
+    if (confirm("Resign the game?")) database.ref('rooms/' + roomID + '/status').set({ type: 'resign', by: myColor });
+}
+
+function offerDraw() {
+    if (!roomID || isGameOver) return;
+    database.ref('rooms/' + roomID + '/status').set({ type: 'drawOffer', by: myColor });
+    alert("Draw offer sent.");
+}
+
+function handleDraw(accepted) {
+    document.getElementById('draw-offer-area').style.display = 'none';
+    if (accepted) database.ref('rooms/' + roomID + '/status').set({ type: 'drawAccepted' });
+    else database.ref('rooms/' + roomID + '/status').set({ type: 'drawDeclined', by: myColor });
+}
+
 function showGameOver(type, detail) {
     isGameOver = true;
-    let winner = "Draw";
-    let reason = "The game ended.";
-
-    if (type === 'resign') {
-        winner = (detail === 'w' ? "Black" : "White") + " Wins!";
-        reason = (detail === 'w' ? "White" : "Black") + " resigned.";
-    } else if (type === 'draw') {
-        reason = "Draw by agreement.";
-    } else {
-        winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black Wins!" : "White Wins!") : "Draw";
-        reason = game.in_checkmate() ? "Checkmate!" : "Draw/Stalemate";
-    }
-
+    let winner = "Draw", reason = "The game ended.";
+    if (type === 'resign') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = (detail === 'w' ? "White" : "Black") + " resigned."; }
+    else if (type === 'draw') reason = "Draw by agreement.";
+    else { winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black Wins!" : "White Wins!") : "Draw"; reason = game.in_checkmate() ? "Checkmate!" : "Draw/Stalemate"; }
     document.getElementById('winner-text').innerText = winner;
     document.getElementById('reason-text').innerText = reason;
     document.getElementById('game-over-modal').style.display = 'block';
@@ -138,7 +134,6 @@ function toggleHighlight() {
     updateGameState();
 }
 
-// 5. ROOM & CHAT
 function joinRoom(color) {
     roomID = document.getElementById('roomInput').value;
     if (!roomID) return alert("Enter Room ID");
@@ -162,9 +157,7 @@ function joinRoom(color) {
         const data = snapshot.val();
         if (!data) return;
         if (data.type === 'resign') showGameOver('resign', data.by);
-        if (data.type === 'drawOffer' && data.by !== myColor) {
-            document.getElementById('draw-offer-area').style.display = 'block';
-        }
+        if (data.type === 'drawOffer' && data.by !== myColor) document.getElementById('draw-offer-area').style.display = 'block';
         if (data.type === 'drawAccepted') showGameOver('draw');
         if (data.type === 'drawDeclined' && data.by !== myColor) alert("Draw offer declined.");
     });
