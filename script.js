@@ -7,48 +7,58 @@ const firebaseConfig = {
     messagingSenderId: "1068006653983",
     appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
-
-
-
 const database = firebase.database();
 
 var board = null, game = new Chess(), myColor = null, roomID = null;
 var isGameOver = false, timers = { w: 600, b: 600 }, timerInterval = null;
 var pendingMove = null;
 
-// 2. THEME SWITCHER
+// 2. EVALUATION ENGINE (Material + Position)
+function evaluateBoard() {
+    const weights = { p: 10, n: 30, b: 30, r: 50, q: 90, k: 900 };
+    let score = 0;
+    game.board().forEach(row => {
+        row.forEach(piece => {
+            if (piece) {
+                let val = weights[piece.type];
+                score += (piece.color === 'w' ? val : -val);
+            }
+        });
+    });
+    
+    // Normalize score for UI (0.0 to 10.0 scale)
+    let displayScore = (score / 10).toFixed(1);
+    let percentage = 50 + (score / 20); // Simple mapping
+    percentage = Math.max(5, Math.min(95, percentage));
+    
+    document.getElementById('eval-bar-fill').style.height = percentage + "%";
+    document.getElementById('eval-text').innerText = (displayScore > 0 ? "+" : "") + displayScore;
+}
+
+// 3. THEME & MATCHMAKING
 function setTheme(theme) {
     document.body.className = '';
     if (theme !== 'default') document.body.classList.add('theme-' + theme);
+    let piecePath = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png';
+    if (theme === 'glass') piecePath = 'https://raw.githubusercontent.com/shaack/cm-chessboard/master/assets/images/pieces/staunty/{piece}.svg';
     
-    // Update pieces style based on theme
-    let piecePath = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'; // default
-    if (theme === 'glass') {
-        // High-quality glossy pieces
-        piecePath = 'https://raw.githubusercontent.com/shaack/cm-chessboard/master/assets/images/pieces/staunty/{piece}.svg';
-    }
-    
-    board.destroy();
+    if(board) board.destroy();
     board = Chessboard('board', {
-        draggable: true,
-        position: game.fen(),
-        pieceTheme: piecePath,
-        onDrop: onDrop,
-        onSnapEnd: () => board.position(game.fen())
+        draggable: true, position: game.fen(), pieceTheme: piecePath,
+        onDrop: onDrop, onSnapEnd: () => board.position(game.fen())
     });
+    if(myColor === 'b') board.orientation('black');
 }
 
-// 3. MATCHMAKING
 function startMatchmaking() {
     const statusMsg = document.getElementById('match-status');
-    const matchBtn = document.getElementById('match-btn');
-    matchBtn.disabled = true;
+    document.getElementById('match-btn').disabled = true;
     statusMsg.innerText = "Connecting...";
 
     const waitingRef = database.ref('waitingRoom');
     waitingRef.transaction((data) => {
         if (data === null) {
-            roomID = "room_" + Math.floor(Math.random() * 100000);
+            roomID = "room_" + Date.now();
             return { roomID: roomID };
         } else {
             roomID = data.roomID;
@@ -58,37 +68,32 @@ function startMatchmaking() {
         if (committed) {
             myColor = 'w';
             statusMsg.innerText = "Waiting for player...";
-            database.ref('rooms/' + roomID + '/ready').on('value', (s) => { if(s.val()) initGame('w'); });
+            database.ref('rooms/' + roomID + '/joined').on('value', (s) => { if(s.val()) initGame(); });
         } else {
             myColor = 'b';
-            database.ref('rooms/' + roomID + '/ready').set(true);
-            initGame('b');
+            database.ref('rooms/' + roomID + '/joined').set(true);
+            initGame();
         }
     });
 }
 
-function initGame(c) {
+function initGame() {
     document.getElementById('setup-section').style.display = 'none';
     document.getElementById('timer-area').style.visibility = 'visible';
     document.getElementById('draw-btn').disabled = false;
     document.getElementById('resign-btn').disabled = false;
-    if (c === 'b') board.orientation('black');
-    listenToUpdates();
-}
-
-function listenToUpdates() {
     database.ref('rooms/' + roomID + '/game').on('value', (s) => {
         const d = s.val();
         if (d && d.fen !== game.fen()) {
             game.load(d.fen);
             timers = d.timers || timers;
             board.position(d.fen);
-            updateUI();
+            updateUI(d.pgn || "");
         }
     });
 }
 
-// 4. CORE MOVES
+// 4. GAME ACTIONS
 function onDrop(source, target) {
     if (!myColor || isGameOver || game.turn() !== myColor) return 'snapback';
     let move = game.move({ from: source, to: target, promotion: 'q' });
@@ -100,43 +105,60 @@ function onDrop(source, target) {
         document.getElementById('promotion-modal').style.display = 'block';
         return 'snapback';
     }
-    sendMove(source, target, 'q');
+    commitMove(source, target, 'q');
 }
 
-function sendMove(f, t, p) {
+function commitMove(f, t, p) {
     game.move({ from: f, to: t, promotion: p });
-    database.ref('rooms/' + roomID + '/game').set({ fen: game.fen(), timers: timers });
-    updateUI();
+    database.ref('rooms/' + roomID + '/game').set({ fen: game.fen(), pgn: game.pgn(), timers: timers });
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        if (isGameOver) return;
+        timers[game.turn()]--;
+        document.getElementById('white-timer').innerText = `White: ${formatTime(timers.w)}`;
+        document.getElementById('black-timer').innerText = `Black: ${formatTime(timers.b)}`;
+        if (timers[game.turn()] <= 0) showGameOver("Timeout");
+    }, 1000);
+}
+
+function updateUI(pgn) {
+    evaluateBoard();
+    const list = document.getElementById('move-list');
+    list.innerHTML = '';
+    pgn.split(/\d+\./).filter(Boolean).forEach((m, i) => {
+        const d = document.createElement('div');
+        d.innerText = `${i + 1}. ${m.trim()}`;
+        list.appendChild(d);
+    });
+    list.scrollTop = list.scrollHeight;
+    if (game.game_over()) showGameOver("Game Over");
 }
 
 function selectPromotion(type) {
     document.getElementById('promotion-modal').style.display = 'none';
-    sendMove(pendingMove.from, pendingMove.to, type);
+    commitMove(pendingMove.from, pendingMove.to, type);
     board.position(game.fen());
 }
 
-function updateUI() {
-    updateCaptures();
-    if (game.game_over()) showGameOver();
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-        timers[game.turn()]--;
-        document.getElementById('white-timer').innerText = `White: ${Math.floor(timers.w/60)}:${(timers.w%60).toString().padStart(2,'0')}`;
-        document.getElementById('black-timer').innerText = `Black: ${Math.floor(timers.b/60)}:${(timers.b%60).toString().padStart(2,'0')}`;
-    }, 1000);
+function formatTime(s) { return `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`; }
+
+function downloadPGN() {
+    const blob = new Blob([game.pgn()], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `match_${roomID}.pgn`;
+    a.click();
 }
 
-function updateCaptures() {
-    const icons = { p:'♙', r:'♖', n:'♘', b:'♗', q:'♕', P:'♟', R:'♜', N:'♞', B:'♝', Q:'♛' };
-    let cw = [], cb = [];
-    game.history({verbose:true}).forEach(m => {
-        if(m.captured) (m.color==='w'?cw:cb).push(icons[m.color==='w'?m.captured.toUpperCase():m.captured]);
-    });
-    document.getElementById('white-captured').innerText = cw.join(' ');
-    document.getElementById('black-captured').innerText = cb.join(' ');
+function copyPGN() {
+    navigator.clipboard.writeText(game.pgn()).then(() => alert("PGN Copied!"));
 }
 
-function showGameOver() { isGameOver = true; document.getElementById('game-over-modal').style.display = 'block'; }
+function showGameOver(r) {
+    isGameOver = true;
+    clearInterval(timerInterval);
+    document.getElementById('reason-text').innerText = r;
+    document.getElementById('game-over-modal').style.display = 'block';
+}
 
-// Init board
-board = Chessboard('board', { draggable: true, position: 'start', onDrop: onDrop });
+setTheme('glass');
