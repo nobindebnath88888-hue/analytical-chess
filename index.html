@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grandmaster Arena - Glass Edition</title>
+    <title>Grandmaster Arena - Pro Edition</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="theme-glass">
     <div id="promotion-modal" class="modal">
         <div class="modal-content">
             <h3>Choose Promotion</h3>
@@ -22,9 +22,13 @@
 
     <div id="game-over-modal" class="modal">
         <div class="modal-content">
-            <h2 id="winner-text">Game Over</h2>
+            <h2 id="winner-text">Match Ended</h2>
             <p id="reason-text"></p>
-            <button onclick="location.reload()">🔄 New Match</button>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button onclick="downloadPGN()" style="background: #28a745; color: white;">📥 Save PGN File</button>
+                <button onclick="copyPGN()" style="background: #17a2b8; color: white;">📋 Copy PGN String</button>
+                <button onclick="location.reload()" style="background: #6c757d; color: white;">🔄 New Match</button>
+            </div>
         </div>
     </div>
 
@@ -38,27 +42,39 @@
 
         <div class="controls">
             <button onclick="setTheme('default')">☀ Light</button>
-            <button onclick="setTheme('dark')">🌙 Dark</button>
-            <button onclick="setTheme('glass')" style="background: linear-gradient(135deg, #2c3e50, #2980b9); color: white;">💎 Glass</button>
+            <button onclick="setTheme('glass')">💎 Glass Blue</button>
             <button id="draw-btn" onclick="offerDraw()" disabled>🤝 Draw</button>
             <button id="resign-btn" onclick="resignGame()" disabled>🏳️ Resign</button>
         </div>
 
         <div id="setup-section">
-            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border-radius: 8px; cursor: pointer;">Find Opponent</button>
-            <p id="match-status" style="margin-top:15px; font-weight: bold; color: #d9534f;"></p>
+            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer;">Find Opponent</button>
+            <p id="match-status" style="margin-top:15px; font-weight: bold; min-height: 24px; color: #d9534f;"></p>
         </div>
 
         <div class="game-layout">
+            <div class="eval-bar-container">
+                <div id="eval-bar-fill"></div>
+                <div id="eval-text">0.0</div>
+            </div>
+
             <div class="board-container">
                 <div id="black-captured" class="captured-area"></div>
                 <div id="board" style="width: 400px; margin: 10px auto;"></div>
                 <div id="white-captured" class="captured-area"></div>
             </div>
+            
             <div class="sidebar-container">
-                <div class="history-section"><h3>Moves</h3><div id="move-list"></div></div>
+                <div class="history-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 10px;">
+                        <h3>Moves</h3>
+                        <button onclick="copyPGN()" title="Copy PGN" style="padding: 2px 5px; font-size: 12px;">📋</button>
+                    </div>
+                    <div id="move-list"></div>
+                </div>
                 <div class="chat-section">
-                    <h3>Chat</h3><div id="chat-messages"></div>
+                    <h3>Chat</h3>
+                    <div id="chat-messages"></div>
                     <div class="chat-input-area">
                         <input type="text" id="chatInput" placeholder="Message...">
                         <button onclick="sendMessage()">Send</button>
