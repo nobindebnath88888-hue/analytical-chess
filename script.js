@@ -8,54 +8,61 @@ const firebaseConfig = {
     appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
 
-firebase.initializeApp(firebaseConfig);
+
+
 const database = firebase.database();
 
 var board = null, game = new Chess(), myColor = null, roomID = null;
 var isGameOver = false, timers = { w: 600, b: 600 }, timerInterval = null;
-var pendingMove = null, gameHistory = [], currentMoveIndex = -1;
+var pendingMove = null;
 
-// 2. REPAIRED MATCHMAKING
+// 2. THEME SWITCHER
+function setTheme(theme) {
+    document.body.className = '';
+    if (theme !== 'default') document.body.classList.add('theme-' + theme);
+    
+    // Update pieces style based on theme
+    let piecePath = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'; // default
+    if (theme === 'glass') {
+        // High-quality glossy pieces
+        piecePath = 'https://raw.githubusercontent.com/shaack/cm-chessboard/master/assets/images/pieces/staunty/{piece}.svg';
+    }
+    
+    board.destroy();
+    board = Chessboard('board', {
+        draggable: true,
+        position: game.fen(),
+        pieceTheme: piecePath,
+        onDrop: onDrop,
+        onSnapEnd: () => board.position(game.fen())
+    });
+}
+
+// 3. MATCHMAKING
 function startMatchmaking() {
     const statusMsg = document.getElementById('match-status');
     const matchBtn = document.getElementById('match-btn');
-    
     matchBtn.disabled = true;
-    statusMsg.innerText = "Searching for game...";
+    statusMsg.innerText = "Connecting...";
 
     const waitingRef = database.ref('waitingRoom');
-
-    waitingRef.transaction((currentData) => {
-        if (currentData === null) {
+    waitingRef.transaction((data) => {
+        if (data === null) {
             roomID = "room_" + Math.floor(Math.random() * 100000);
             return { roomID: roomID };
         } else {
-            roomID = currentData.roomID;
-            return null; // Join and clear the queue
+            roomID = data.roomID;
+            return null;
         }
-    }, (error, committed, snapshot) => {
-        if (error) {
-            console.error("Firebase Transaction Failed:", error);
-            statusMsg.innerText = "Error: " + error.message;
-            matchBtn.disabled = false;
+    }, (err, committed) => {
+        if (committed) {
+            myColor = 'w';
+            statusMsg.innerText = "Waiting for player...";
+            database.ref('rooms/' + roomID + '/ready').on('value', (s) => { if(s.val()) initGame('w'); });
         } else {
-            if (committed) {
-                // I created the room (White)
-                myColor = 'w';
-                statusMsg.innerText = "Waiting for opponent to join...";
-                database.ref('rooms/' + roomID + '/matchReady').on('value', (s) => {
-                    if (s.val() && s.val().joined) {
-                        database.ref('rooms/' + roomID + '/matchReady').off();
-                        initGame('w');
-                    }
-                });
-            } else {
-                // I joined an existing room (Black)
-                myColor = 'b';
-                statusMsg.innerText = "Opponent found! Loading...";
-                database.ref('rooms/' + roomID + '/matchReady').set({ joined: true });
-                initGame('b');
-            }
+            myColor = 'b';
+            database.ref('rooms/' + roomID + '/ready').set(true);
+            initGame('b');
         }
     });
 }
@@ -65,117 +72,71 @@ function initGame(c) {
     document.getElementById('timer-area').style.visibility = 'visible';
     document.getElementById('draw-btn').disabled = false;
     document.getElementById('resign-btn').disabled = false;
-    
     if (c === 'b') board.orientation('black');
-    
-    // Start listeners
-    listenToGameUpdates();
-    
-    // If white, set initial board in DB
-    if (c === 'w') {
-        database.ref('rooms/' + roomID + '/game').set({
-            fen: game.fen(),
-            pgn: "",
-            timers: { w: 600, b: 600 }
-        });
-    }
+    listenToUpdates();
 }
 
-// 3. LISTENERS & SYNC
-function listenToGameUpdates() {
+function listenToUpdates() {
     database.ref('rooms/' + roomID + '/game').on('value', (s) => {
-        const data = s.val();
-        if (data && data.fen && data.fen !== game.fen()) {
-            game.load(data.fen);
-            timers = data.timers || timers;
-            board.position(data.fen);
-            updateGameState();
+        const d = s.val();
+        if (d && d.fen !== game.fen()) {
+            game.load(d.fen);
+            timers = d.timers || timers;
+            board.position(d.fen);
+            updateUI();
         }
     });
-
-    database.ref('rooms/' + roomID + '/status').on('value', (s) => {
-        const d = s.val();
-        if (d?.type === 'resign') showGameOver('resign', d.by);
-    });
 }
 
-// 4. BOARD LOGIC
+// 4. CORE MOVES
 function onDrop(source, target) {
     if (!myColor || isGameOver || game.turn() !== myColor) return 'snapback';
-    
     let move = game.move({ from: source, to: target, promotion: 'q' });
-    if (move === null) return 'snapback';
+    if (!move) return 'snapback';
     game.undo();
 
-    // Promotion Check
-    let isProm = (move.color === 'w' && target[1] === '8' && move.piece === 'p') || 
-                  (move.color === 'b' && target[1] === '1' && move.piece === 'p');
-    
-    if (isProm) {
+    if ((move.color === 'w' && target[1] === '8' && move.piece === 'p') || (move.color === 'b' && target[1] === '1' && move.piece === 'p')) {
         pendingMove = { from: source, to: target };
         document.getElementById('promotion-modal').style.display = 'block';
         return 'snapback';
     }
+    sendMove(source, target, 'q');
+}
 
-    executeMove(source, target, 'q');
+function sendMove(f, t, p) {
+    game.move({ from: f, to: t, promotion: p });
+    database.ref('rooms/' + roomID + '/game').set({ fen: game.fen(), timers: timers });
+    updateUI();
 }
 
 function selectPromotion(type) {
     document.getElementById('promotion-modal').style.display = 'none';
-    executeMove(pendingMove.from, pendingMove.to, type);
+    sendMove(pendingMove.from, pendingMove.to, type);
     board.position(game.fen());
 }
 
-function executeMove(f, t, p) {
-    let move = game.move({ from: f, to: t, promotion: p });
-    database.ref('rooms/' + roomID + '/game').set({
-        fen: game.fen(),
-        pgn: game.pgn(),
-        timers: timers
-    });
-    updateGameState();
-}
-
-function updateGameState() {
+function updateUI() {
     updateCaptures();
-    if (game.in_draw() || game.in_threefold_repetition()) showGameOver('draw');
     if (game.game_over()) showGameOver();
-    startTimer();
-}
-
-// 5. UTILS
-function startTimer() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-        if (!isGameOver) {
-            timers[game.turn()]--;
-            document.getElementById('white-timer').innerText = `White: ${formatTime(timers.w)}`;
-            document.getElementById('black-timer').innerText = `Black: ${formatTime(timers.b)}`;
-            if (timers[game.turn()] <= 0) showGameOver('timeout', game.turn());
-        }
+        timers[game.turn()]--;
+        document.getElementById('white-timer').innerText = `White: ${Math.floor(timers.w/60)}:${(timers.w%60).toString().padStart(2,'0')}`;
+        document.getElementById('black-timer').innerText = `Black: ${Math.floor(timers.b/60)}:${(timers.b%60).toString().padStart(2,'0')}`;
     }, 1000);
-}
-
-function formatTime(s) { return `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`; }
-
-function showGameOver(type, detail) {
-    isGameOver = true;
-    clearInterval(timerInterval);
-    document.getElementById('winner-text').innerText = "Game Over";
-    document.getElementById('game-over-modal').style.display = 'block';
 }
 
 function updateCaptures() {
     const icons = { p:'♙', r:'♖', n:'♘', b:'♗', q:'♕', P:'♟', R:'♜', N:'♞', B:'♝', Q:'♛' };
-    let capW = [], capB = [];
+    let cw = [], cb = [];
     game.history({verbose:true}).forEach(m => {
-        if(m.captured) (m.color==='w' ? capW : capB).push(icons[m.color==='w' ? m.captured.toUpperCase() : m.captured]);
+        if(m.captured) (m.color==='w'?cw:cb).push(icons[m.color==='w'?m.captured.toUpperCase():m.captured]);
     });
-    document.getElementById('white-captured').innerText = capW.join(' ');
-    document.getElementById('black-captured').innerText = capB.join(' ');
+    document.getElementById('white-captured').innerText = cw.join(' ');
+    document.getElementById('black-captured').innerText = cb.join(' ');
 }
 
-var config = { draggable: true, position: 'start', onDrop: onDrop, onSnapEnd: () => board.position(game.fen()) };
-board = Chessboard('board', config);
+function showGameOver() { isGameOver = true; document.getElementById('game-over-modal').style.display = 'block'; }
 
-function toggleTheme() { document.body.classList.toggle('dark-mode'); }
+// Init board
+board = Chessboard('board', { draggable: true, position: 'start', onDrop: onDrop });
