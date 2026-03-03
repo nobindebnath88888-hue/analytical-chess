@@ -25,9 +25,9 @@
             <h2 id="winner-text">Match Ended</h2>
             <p id="reason-text"></p>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button onclick="downloadPGN()" style="background: #28a745; color: white;">📥 Save PGN File</button>
-                <button onclick="copyPGN()" style="background: #17a2b8; color: white;">📋 Copy PGN String</button>
-                <button onclick="location.reload()" style="background: #6c757d; color: white;">🔄 New Match</button>
+                <button onclick="downloadPGN()" style="background: #28a745; color: white; border: none;">📥 Save PGN File</button>
+                <button onclick="copyPGN()" style="background: #17a2b8; color: white; border: none;">📋 Copy PGN String</button>
+                <button onclick="location.reload()" style="background: #6c757d; color: white; border: none;">🔄 New Match</button>
             </div>
         </div>
     </div>
@@ -87,8 +87,10 @@
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    
     <script src="script.js"></script>
 </body>
 </html>
