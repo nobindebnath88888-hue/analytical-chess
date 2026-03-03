@@ -3,37 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grandmaster Arena - Ultimate Edition</title>
+    <title>Grandmaster Arena - 10 Min Blitz</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="theme-glass">
-    <div id="promotion-modal" class="modal">
-        <div class="modal-content">
-            <h3>Choose Promotion</h3>
-            <div class="promotion-options">
-                <button onclick="selectPromotion('q')">♛ Queen</button>
-                <button onclick="selectPromotion('r')">♜ Rook</button>
-                <button onclick="selectPromotion('b')">♝ Bishop</button>
-                <button onclick="selectPromotion('n')">♞ Knight</button>
-            </div>
-        </div>
-    </div>
-
+<body>
     <div id="game-over-modal" class="modal">
         <div class="modal-content">
-            <h2 id="winner-text">Match Ended</h2>
+            <h2 id="winner-text">Game Over</h2>
             <p id="reason-text"></p>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button onclick="downloadPGN()" style="background: #28a745; color: white; border:none;">📥 Save PGN File</button>
-                <button onclick="copyPGN()" style="background: #17a2b8; color: white; border:none;">📋 Copy PGN String</button>
-                <button onclick="location.reload()" style="background: #6c757d; color: white; border:none;">🔄 New Match</button>
+            <div class="modal-actions">
+                <button onclick="location.reload()" style="background: #28a745;">🔄 New Match</button>
+                <button onclick="closeModal()" style="background: #6c757d;">Close</button>
             </div>
         </div>
     </div>
 
     <div class="container">
-        <h1>Strategy Hub</h1>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+            <h1>Strategy Hub</h1>
+            <span id="spectator-badge" style="display:none; background: #ff4757; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">👁️ <span id="spectator-count">0</span> watching</span>
+        </div>
         
         <div id="timer-area" class="timer-container" style="visibility: hidden;">
             <div id="white-timer" class="timer">White: 10:00</div>
@@ -41,52 +31,53 @@
         </div>
 
         <div class="controls">
-            <button onclick="setTheme('default')">☀ Light</button>
-            <button onclick="setTheme('glass')">💎 Glass Blue</button>
+            <button id="theme-toggle" onclick="toggleTheme()">🌙 Theme</button>
+            <button id="sound-toggle" onclick="toggleSound()">🔊 Sound: ON</button>
+            <button id="test-sound" onclick="unlockAudio(); playSound('snd-move');" style="background:#e9ecef;">🎵 Test Audio</button>
+            <button id="full-screen" onclick="toggleFullScreen()">📺 Fullscreen</button>
+            <button id="highlight-toggle" onclick="toggleHighlight()">🎯 King Highlight</button>
+            <button id="flip-toggle" onclick="flipBoard()">🔄 Flip</button>
             <button id="draw-btn" onclick="offerDraw()" disabled>🤝 Draw</button>
             <button id="resign-btn" onclick="resignGame()" disabled>🏳️ Resign</button>
         </div>
 
+        <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba; color: #856404;">
+            <span>Opponent offers a draw.</span>
+            <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer; margin-left: 10px;">Accept</button>
+            <button onclick="handleDraw(false)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor:pointer;">Decline</button>
+        </div>
+
         <div id="setup-section">
-            <div class="matchmaking-box">
-                <button id="match-btn" onclick="startMatchmaking()">Find Random Opponent</button>
-                <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
-                <div style="display: flex; flex-direction: column; gap: 10px; max-width: 300px; margin: auto;">
-                    <button onclick="createPrivateMatch()" style="background: #2b4a7d; color: white; border:none;">Create Private Room</button>
-                    <div style="display: flex; gap: 5px;">
-                        <input type="text" id="join-code-input" placeholder="Enter Match ID" style="flex-grow: 1; padding: 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--box); color: var(--text);">
-                        <button onclick="joinPrivateMatch()">Join</button>
-                    </div>
-                </div>
-                <p id="match-status" style="margin-top:15px; font-weight: bold; color: #d9534f;"></p>
+            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight:bold;">Find Opponent</button>
+            <p id="match-status" style="margin-top:15px; font-weight: bold; min-height: 24px;"></p>
+            
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+            <h3>Live Matches</h3>
+            <div id="live-games-list" style="max-width: 400px; margin: 0 auto; background: var(--box); border-radius: 8px; padding: 10px; min-height: 50px;">
+                <p style="color: #888;">No active games to watch.</p>
             </div>
         </div>
 
         <div class="game-layout">
-            <div class="eval-bar-container">
-                <div id="eval-bar-fill"></div>
-                <div id="eval-text">0.0</div>
-            </div>
-
             <div class="board-container">
-                <div id="black-captured" class="captured-area"></div>
-                <div id="board" style="width: 400px; margin: 10px auto;"></div>
-                <div id="white-captured" class="captured-area"></div>
+                <div id="board" style="width: 400px;"></div>
+                <div class="nav-controls">
+                    <button onclick="prevMove()"> < </button>
+                    <button onclick="nextMove()"> > </button>
+                </div>
             </div>
             
             <div class="sidebar-container">
                 <div class="history-section">
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 10px;">
-                        <h3>Moves</h3>
-                        <button onclick="copyPGN()" title="Copy PGN" style="padding: 2px 5px; font-size: 12px;">📋</button>
-                    </div>
+                    <h3>Move History</h3>
                     <div id="move-list"></div>
                 </div>
+
                 <div class="chat-section">
-                    <h3>Chat</h3>
+                    <h3>Game Chat</h3>
                     <div id="chat-messages"></div>
                     <div class="chat-input-area">
-                        <input type="text" id="chatInput" placeholder="Message...">
+                        <input type="text" id="chatInput" placeholder="Type a message...">
                         <button onclick="sendMessage()">Send</button>
                     </div>
                 </div>
@@ -94,9 +85,12 @@
         </div>
     </div>
 
-    <audio id="move-sound" src="https://images.chesscomfiles.com/chess-themes/sounds/_standard/default/move-self.mp3"></audio>
-    <audio id="capture-sound" src="https://images.chesscomfiles.com/chess-themes/sounds/_standard/default/capture.mp3"></audio>
-    <audio id="check-sound" src="https://images.chesscomfiles.com/chess-themes/sounds/_standard/default/move-check.mp3"></audio>
+    <audio id="snd-move" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
+    <audio id="snd-capture" src="https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3" preload="auto"></audio>
+    <audio id="snd-check" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3" preload="auto"></audio>
+    <audio id="snd-game-start" src="https://assets.mixkit.co/active_storage/sfx/1084/1084-preview.mp3" preload="auto"></audio>
+    <audio id="snd-game-end" src="https://assets.mixkit.co/active_storage/sfx/1085/1085-preview.mp3" preload="auto"></audio>
+    <audio id="snd-msg" src="https://www.soundjay.com/buttons/sounds/button-16.mp3" preload="auto"></audio>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
