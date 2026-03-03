@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grandmaster Arena</title>
+    <title>Grandmaster Arena - Glass Edition</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -29,7 +29,7 @@
     </div>
 
     <div class="container">
-        <h1>Strategy Hub <span id="spectator-badge" style="display:none; font-size:12px; background:red; color:white; padding:2px 8px; border-radius:10px;">👁️ <span id="spectator-count">0</span></span></h1>
+        <h1>Strategy Hub</h1>
         
         <div id="timer-area" class="timer-container" style="visibility: hidden;">
             <div id="white-timer" class="timer">White: 10:00</div>
@@ -37,7 +37,9 @@
         </div>
 
         <div class="controls">
-            <button onclick="toggleTheme()">🌙 Theme</button>
+            <button onclick="setTheme('default')">☀ Light</button>
+            <button onclick="setTheme('dark')">🌙 Dark</button>
+            <button onclick="setTheme('glass')" style="background: linear-gradient(135deg, #2c3e50, #2980b9); color: white;">💎 Glass</button>
             <button id="draw-btn" onclick="offerDraw()" disabled>🤝 Draw</button>
             <button id="resign-btn" onclick="resignGame()" disabled>🏳️ Resign</button>
         </div>
@@ -45,7 +47,6 @@
         <div id="setup-section">
             <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border-radius: 8px; cursor: pointer;">Find Opponent</button>
             <p id="match-status" style="margin-top:15px; font-weight: bold; color: #d9534f;"></p>
-            <div id="live-games-list"></div>
         </div>
 
         <div class="game-layout">
@@ -58,7 +59,10 @@
                 <div class="history-section"><h3>Moves</h3><div id="move-list"></div></div>
                 <div class="chat-section">
                     <h3>Chat</h3><div id="chat-messages"></div>
-                    <input type="text" id="chatInput" placeholder="Message..."><button onclick="sendMessage()">Send</button>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Message...">
+                        <button onclick="sendMessage()">Send</button>
+                    </div>
                 </div>
             </div>
         </div>
