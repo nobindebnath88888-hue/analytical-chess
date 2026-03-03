@@ -7,6 +7,7 @@ const firebaseConfig = {
     messagingSenderId: "1068006653983",
     appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
+
 const database = firebase.database();
 
 var board = null, game = new Chess(), myColor = null, roomID = null;
