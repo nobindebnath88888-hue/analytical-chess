@@ -1,117 +1,93 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grandmaster Arena - Strategy Hub</title>
-    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
-    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grandmaster Arena - 10 Min Blitz</title>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-over-modal" class="modal" aria-hidden="true">
-        <div class="modal-content">
-            <h2 id="winner-text">Game Over</h2>
-            <p id="reason-text"></p>
-            <div class="modal-actions">
-                <button onclick="requestNewGame()" style="background: #28a745;">🔄 Rematch</button>
-                <button onclick="closeModal()" style="background: #6c757d;">Close</button>
-            </div>
-        </div>
-    </div>
+    <div id="game-over-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="winner-text">Game Over</h2>
+            <p id="reason-text"></p>
+            <div class="modal-actions">
+                <button onclick="requestNewGame()" style="background: #28a745;">🔄 Rematch</button>
+                <button onclick="closeModal()" style="background: #6c757d;">Close</button>
+            </div>
+        </div>
+    </div>
 
-    <div class="container">
-        <header>
-            <h1>Strategy Hub</h1>
-            <div id="player-rating-display">
-                🏆 Your Rating: <span id="elo-value">1200</span>
-            </div>
-        </header>
-        
-        <div id="timer-area" class="timer-container" style="visibility: hidden;">
-            <div id="white-timer" class="timer">White: 10:00</div>
-            <div id="black-timer" class="timer">Black: 10:00</div>
-        </div>
+    <div class="container">
+        <h1>Strategy Hub</h1>
+        
+        <div id="timer-area" class="timer-container" style="visibility: hidden;">
+            <div id="white-timer" class="timer">White: 10:00</div>
+            <div id="black-timer" class="timer">Black: 10:00</div>
+        </div>
 
-        <div id="spectator-msg" style="display:none; color: #d9534f; font-weight: bold; margin-bottom: 10px;">
-            👁️ Spectating Mode (View Only)
-        </div>
+        <div class="controls">
+            <button id="theme-toggle" onclick="toggleTheme()">🌙 Theme</button>
+            <button id="sound-toggle" onclick="toggleSound()">🔊 Sound: ON</button>
+            <button id="full-screen" onclick="toggleFullScreen()">📺 Fullscreen</button>
+            <button id="highlight-toggle" onclick="toggleHighlight()">🎯 King Highlight</button>
+            <button id="flip-toggle" onclick="flipBoard()">🔄 Flip</button>
+            <button id="draw-btn" onclick="offerDraw()" disabled>🤝 Draw</button>
+            <button id="resign-btn" onclick="resignGame()" disabled>🏳️ Resign</button>
+        </div>
 
-        <div class="controls">
-            <button id="theme-toggle" onclick="toggleTheme()">🌙 Theme</button>
-            <button id="sound-toggle" onclick="toggleSound()">🔊 Sound: ON</button>
-            <button id="full-screen" onclick="toggleFullScreen()">📺 Fullscreen</button>
-            <button id="highlight-toggle" onclick="toggleHighlight()">🎯 King Highlight</button>
-            <button id="flip-toggle" onclick="flipBoard()">🔄 Flip</button>
-            <button id="draw-btn" onclick="offerDraw()" disabled>🤝 Draw</button>
-            <button id="resign-btn" onclick="resignGame()" disabled>🏳️ Resign</button>
-        </div>
+        <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba; color: #856404;">
+            <span>Opponent offers a draw.</span>
+            <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer; margin-left: 10px;">Accept</button>
+            <button onclick="handleDraw(false)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor:pointer;">Decline</button>
+        </div>
 
-        <div id="draw-offer-area" style="display:none;" class="notification">
-            <span>Opponent offers a draw.</span>
-            <button onclick="handleDraw(true)" class="btn-small btn-green">Accept</button>
-            <button onclick="handleDraw(false)" class="btn-small btn-red">Decline</button>
-        </div>
+        <div id="setup-section">
+            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer;">Play New Game</button>
+            <p id="match-status" style="margin-top:15px; font-weight: bold; min-height: 24px;"></p>
+        </div>
 
-        <div id="setup-section">
-            <div class="lobby-card">
-                <h2>Match Settings</h2>
-                <div class="time-selector">
-                    <label>Select Time Control:</label>
-                    <select id="time-control">
-                        <option value="60">1 Minute (Bullet)</option>
-                        <option value="180">3 Minutes (Blitz)</option>
-                        <option value="300">5 Minutes (Blitz)</option>
-                        <option value="600" selected>10 Minutes (Rapid)</option>
-                    </select>
-                </div>
-                <button id="match-btn" onclick="startMatchmaking()">Play New Game</button>
-                <p id="match-status"></p>
-                
-                <hr>
-                <h3>Global Leaderboard</h3>
-                <div id="leaderboard-list">Loading rankings...</div>
-            </div>
-        </div>
+        <div class="game-layout">
+            <div class="board-container">
+                <div id="board" style="width: 400px;"></div>
+                <div class="nav-controls">
+                    <button onclick="prevMove()"> < </button>
+                    <button onclick="nextMove()"> > </button>
+                </div>
+            </div>
+            
+            <div class="sidebar-container">
+                <div class="history-section">
+                    <h3>Move History</h3>
+                    <div id="move-list"></div>
+                </div>
 
-        <main class="game-layout">
-            <div class="board-container">
-                <div id="board" style="width: 100%; max-width: 400px; margin: 0 auto;"></div>
-                <div class="nav-controls">
-                    <button onclick="prevMove()"> &lt; </button>
-                    <button onclick="nextMove()"> &gt; </button>
-                </div>
-            </div>
-            
-            <div class="sidebar-container">
-                <section class="history-section">
-                    <h3>Move History</h3>
-                    <div id="move-list"></div>
-                </section>
+                <div class="chat-section">
+                    <h3>Game Chat</h3>
+                    <div id="chat-messages"></div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Type a message...">
+                        <button onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                <section class="chat-section">
-                    <h3>Game Chat</h3>
-                    <div id="chat-messages"></div>
-                    <div class="chat-input-area">
-                        <input type="text" id="chatInput" placeholder="Type a message...">
-                        <button onclick="sendMessage()">Send</button>
-                    </div>
-                </section>
-            </div>
-        </main>
-    </div>
+    <audio id="snd-move" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-self.mp3"></audio>
+    <audio id="snd-capture" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/capture.mp3"></audio>
+    <audio id="snd-check" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-check.mp3"></audio>
+    <audio id="snd-game-start" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-start.mp3"></audio>
+    <audio id="snd-game-end" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-end.mp3"></audio>
+    <audio id="snd-msg" src="https://www.soundjay.com/buttons/sounds/button-16.mp3"></audio>
 
-    <audio id="snd-move" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-self.mp3"></audio>
-    <audio id="snd-capture" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/capture.mp3"></audio>
-    <audio id="snd-check" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-check.mp3"></audio>
-    <audio id="snd-game-start" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-start.mp3"></audio>
-    <audio id="snd-game-end" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/game-end.mp3"></audio>
-    <audio id="snd-msg" src="https://www.soundjay.com/buttons/sounds/button-16.mp3"></audio>
-
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
-    <script src="script.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
