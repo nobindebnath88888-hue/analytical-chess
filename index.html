@@ -1,15 +1,14 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grandmaster Arena - 10 Min Blitz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Grandmaster Arena - Strategy Hub</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-over-modal" class="modal">
+    <div id="game-over-modal" class="modal" aria-hidden="true">
         <div class="modal-content">
             <h2 id="winner-text">Game Over</h2>
             <p id="reason-text"></p>
@@ -21,11 +20,20 @@
     </div>
 
     <div class="container">
-        <h1>Strategy Hub</h1>
+        <header>
+            <h1>Strategy Hub</h1>
+            <div id="player-rating-display">
+                🏆 Your Rating: <span id="elo-value">1200</span>
+            </div>
+        </header>
         
         <div id="timer-area" class="timer-container" style="visibility: hidden;">
             <div id="white-timer" class="timer">White: 10:00</div>
             <div id="black-timer" class="timer">Black: 10:00</div>
+        </div>
+
+        <div id="spectator-msg" style="display:none; color: #d9534f; font-weight: bold; margin-bottom: 10px;">
+            👁️ Spectating Mode (View Only)
         </div>
 
         <div class="controls">
@@ -38,42 +46,58 @@
             <button id="resign-btn" onclick="resignGame()" disabled>🏳️ Resign</button>
         </div>
 
-        <div id="draw-offer-area" style="display:none; background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeeba; color: #856404;">
+        <div id="draw-offer-area" style="display:none;" class="notification">
             <span>Opponent offers a draw.</span>
-            <button onclick="handleDraw(true)" style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor:pointer; margin-left: 10px;">Accept</button>
-            <button onclick="handleDraw(false)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor:pointer;">Decline</button>
+            <button onclick="handleDraw(true)" class="btn-small btn-green">Accept</button>
+            <button onclick="handleDraw(false)" class="btn-small btn-red">Decline</button>
         </div>
 
         <div id="setup-section">
-            <button id="match-btn" onclick="startMatchmaking()" style="padding: 15px 40px; font-size: 20px; background: #2b4a7d; color: white; border: none; border-radius: 8px; cursor: pointer;">Play New Game</button>
-            <p id="match-status" style="margin-top:15px; font-weight: bold; min-height: 24px;"></p>
+            <div class="lobby-card">
+                <h2>Match Settings</h2>
+                <div class="time-selector">
+                    <label>Select Time Control:</label>
+                    <select id="time-control">
+                        <option value="60">1 Minute (Bullet)</option>
+                        <option value="180">3 Minutes (Blitz)</option>
+                        <option value="300">5 Minutes (Blitz)</option>
+                        <option value="600" selected>10 Minutes (Rapid)</option>
+                    </select>
+                </div>
+                <button id="match-btn" onclick="startMatchmaking()">Play New Game</button>
+                <p id="match-status"></p>
+                
+                <hr>
+                <h3>Global Leaderboard</h3>
+                <div id="leaderboard-list">Loading rankings...</div>
+            </div>
         </div>
 
-        <div class="game-layout">
+        <main class="game-layout">
             <div class="board-container">
-                <div id="board" style="width: 400px;"></div>
+                <div id="board" style="width: 100%; max-width: 400px; margin: 0 auto;"></div>
                 <div class="nav-controls">
-                    <button onclick="prevMove()"> < </button>
-                    <button onclick="nextMove()"> > </button>
+                    <button onclick="prevMove()"> &lt; </button>
+                    <button onclick="nextMove()"> &gt; </button>
                 </div>
             </div>
             
             <div class="sidebar-container">
-                <div class="history-section">
+                <section class="history-section">
                     <h3>Move History</h3>
                     <div id="move-list"></div>
-                </div>
+                </section>
 
-                <div class="chat-section">
+                <section class="chat-section">
                     <h3>Game Chat</h3>
                     <div id="chat-messages"></div>
                     <div class="chat-input-area">
                         <input type="text" id="chatInput" placeholder="Type a message...">
                         <button onclick="sendMessage()">Send</button>
                     </div>
-                </div>
+                </section>
             </div>
-        </div>
+        </main>
     </div>
 
     <audio id="snd-move" src="https://images.chesscomfiles.com/chess-themes/pieces/board/sounds/standard/move-self.mp3"></audio>
