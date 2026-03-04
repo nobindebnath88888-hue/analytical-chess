@@ -8,10 +8,10 @@ const firebaseConfig = {
     appId: "1:1068006653983:web:15ef22659ab22a3fda552a"
 };
 
-
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
+// 1. GLOBALS & ELO INITIALIZATION
 var board = null;
 var game = new Chess();
 var myColor = null;
@@ -25,7 +25,47 @@ var timers = { w: 600, b: 600 };
 var timerInterval = null;
 var selectedSquare = null;
 
-// 2. SOUNDS
+// Persistent Player Info
+let myRating = parseInt(localStorage.getItem('chess_elo')) || 1200;
+let myPlayerName = localStorage.getItem('chess_player_name') || "Player_" + Math.floor(Math.random() * 1000);
+localStorage.setItem('chess_player_name', myPlayerName);
+document.getElementById('elo-value').innerText = myRating;
+
+// 2. LEADERBOARD LOGIC
+function updateLeaderboard() {
+    database.ref('leaderboard/' + myPlayerName).set(myRating);
+}
+
+function fetchLeaderboard() {
+    const lbRef = database.ref('leaderboard').orderByValue().limitToLast(5);
+    lbRef.on('value', (snapshot) => {
+        const lbList = document.getElementById('leaderboard-list');
+        lbList.innerHTML = '';
+        let players = [];
+        snapshot.forEach(child => {
+            players.push({ name: child.key, elo: child.val() });
+        });
+        players.reverse().forEach((p, i) => {
+            const div = document.createElement('div');
+            div.className = 'leaderboard-item';
+            div.innerHTML = `<span>#${i + 1} ${p.name}</span> <b>${p.elo}</b>`;
+            lbList.appendChild(div);
+        });
+    });
+}
+fetchLeaderboard();
+
+function updateElo(won, draw = false) {
+    const K = 32;
+    const expectedScore = 0.5; // Simplified for this demo
+    let actualScore = won ? 1 : (draw ? 0.5 : 0);
+    myRating = Math.round(myRating + K * (actualScore - expectedScore));
+    localStorage.setItem('chess_elo', myRating);
+    document.getElementById('elo-value').innerText = myRating;
+    updateLeaderboard();
+}
+
+// 3. SOUNDS
 function playSound(id) {
     if (!soundEnabled) return;
     const sound = document.getElementById(id);
@@ -37,12 +77,12 @@ function toggleSound() {
     document.getElementById('sound-toggle').innerText = soundEnabled ? "🔊 Sound: ON" : "🔇 Sound: OFF";
 }
 
-// 3. MATCHMAKING
+// 4. MATCHMAKING
 function startMatchmaking() {
     const statusMsg = document.getElementById('match-status');
-    const matchBtn = document.getElementById('match-btn');
-    matchBtn.disabled = true;
-    statusMsg.innerText = "Searching for an opponent...";
+    const selectedSeconds = parseInt(document.getElementById('time-control').value);
+    document.getElementById('match-btn').disabled = true;
+    statusMsg.innerText = "Searching for opponent...";
 
     const waitingRef = database.ref('waitingRoom');
     waitingRef.once('value', (snapshot) => {
@@ -50,16 +90,23 @@ function startMatchmaking() {
         if (data) {
             roomID = data.roomID;
             waitingRef.remove();
-            const coinFlip = Math.random() < 0.5;
-            myColor = coinFlip ? 'w' : 'b';
-            database.ref('rooms/' + roomID + '/matchReady').set({ start: true, whitePlayerColor: myColor === 'w' ? 'joiner' : 'waiter' });
+            myColor = Math.random() < 0.5 ? 'w' : 'b';
+            database.ref('rooms/' + roomID + '/matchReady').set({ 
+                start: true, 
+                whitePlayerColor: myColor === 'w' ? 'joiner' : 'waiter',
+                initialTime: selectedSeconds
+            });
             initGame(myColor);
         } else {
             roomID = "room_" + Math.floor(Math.random() * 1000000);
-            waitingRef.set({ roomID: roomID });
+            waitingRef.set({ roomID: roomID, time: selectedSeconds });
             database.ref('rooms/' + roomID + '/matchReady').on('value', (s) => {
                 const r = s.val();
-                if (r && r.start) { myColor = r.whitePlayerColor === 'waiter' ? 'w' : 'b'; initGame(myColor); }
+                if (r && r.start) { 
+                    myColor = r.whitePlayerColor === 'waiter' ? 'w' : 'b'; 
+                    timers = { w: r.initialTime, b: r.initialTime };
+                    initGame(myColor); 
+                }
             });
         }
     });
@@ -69,26 +116,23 @@ function initGame(color) {
     playSound('snd-game-start');
     document.getElementById('setup-section').style.display = 'none';
     document.getElementById('timer-area').style.visibility = 'visible';
-    document.getElementById('draw-btn').disabled = false;
-    document.getElementById('resign-btn').disabled = false;
+    if (color !== 'spectator') {
+        document.getElementById('draw-btn').disabled = false;
+        document.getElementById('resign-btn').disabled = false;
+    }
     if (color === 'b') board.orientation('black');
     listenToGameUpdates();
 }
 
-// 4. CLICK & DRAG LOGIC
+// 5. MOVE LOGIC
 function removeGreyDots() { 
     $('#board .square-55d63').removeClass('highlight-selected');
     $('#board .square-55d63 .dot').remove(); 
 }
 
-function greyDot(square) {
-    var $square = $('#board .square-' + square);
-    $square.append('<span class="dot"></span>');
-}
-
 function onSquareClick(square) {
-    if (isGameOver || !myColor || game.turn() !== myColor) return;
-    if (currentMoveIndex !== gameHistory.length - 1) return;
+    if (isGameOver || !myColor || myColor === 'spectator' || game.turn() !== myColor) return;
+    if (currentMoveIndex !== gameHistory.length - 1 && gameHistory.length > 0) return;
 
     if (selectedSquare) {
         var move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
@@ -119,7 +163,10 @@ function showLegalMoves(square) {
     removeGreyDots();
     $('#board .square-' + square).addClass('highlight-selected');
     var moves = game.moves({ square: square, verbose: true });
-    for (var i = 0; i < moves.length; i++) { greyDot(moves[i].to); }
+    for (var i = 0; i < moves.length; i++) {
+        var $sq = $('#board .square-' + moves[i].to);
+        $sq.append('<span class="dot"></span>');
+    }
 }
 
 function afterMoveActions(move) {
@@ -130,29 +177,25 @@ function afterMoveActions(move) {
     updateGameState();
 }
 
+// 6. BOARD CONFIG
 var config = {
     draggable: true,
     position: 'start',
-    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
     onDragStart: (s, p) => {
-        if (isGameOver || !myColor || game.turn() !== myColor) return false;
-        if (currentMoveIndex !== gameHistory.length - 1) return false;
+        if (isGameOver || myColor === 'spectator' || !myColor || game.turn() !== myColor) return false;
         if (p.search(new RegExp('^' + (myColor === 'w' ? 'b' : 'w'))) !== -1) return false;
     },
     onDrop: (s, t) => {
         var move = game.move({ from: s, to: t, promotion: 'q' });
         if (move === null) return 'snapback';
-        selectedSquare = null; removeGreyDots(); afterMoveActions(move);
+        afterMoveActions(move);
     },
     onSnapEnd: () => { board.position(game.fen()); }
 };
 board = Chessboard('board', config);
+$('#board').on('click', '.square-55d63', function() { onSquareClick($(this).attr('data-square')); });
 
-$('#board').on('click', '.square-55d63', function() {
-    onSquareClick($(this).attr('data-square'));
-});
-
-// 5. FIREBASE SYNC
+// 7. SYNC & TIMERS
 function listenToGameUpdates() {
     database.ref('rooms/' + roomID + '/game').on('value', (snapshot) => {
         const data = snapshot.val();
@@ -160,15 +203,10 @@ function listenToGameUpdates() {
             const isNewMove = data.fen !== game.fen();
             game.load(data.fen);
             if (data.timers) timers = data.timers;
-            gameHistory.push(data.fen);
-            currentMoveIndex = gameHistory.length - 1;
-            board.position(data.fen);
             if (isNewMove) {
-                const h = game.history({verbose: true});
-                const last = h[h.length - 1];
-                if (game.in_check()) playSound('snd-check');
-                else if (last && last.captured) playSound('snd-capture');
-                else playSound('snd-move');
+                gameHistory.push(data.fen);
+                currentMoveIndex = gameHistory.length - 1;
+                board.position(data.fen);
             }
             updateGameState(); updateTimerDisplay(); updateMoveList(data.pgn || "");
         }
@@ -176,32 +214,50 @@ function listenToGameUpdates() {
 
     database.ref('rooms/' + roomID + '/status').on('value', (snapshot) => {
         const d = snapshot.val();
-        if (!d) return;
+        if (!d || isGameOver) return;
         if (d.type === 'resign') showGameOver('resign', d.by);
         if (d.type === 'timeout') showGameOver('timeout', d.by);
-        if (d.type === 'drawOffer' && d.by !== myColor) document.getElementById('draw-offer-area').style.display = 'block';
+        if (d.type === 'drawOffer' && d.by !== myColor && myColor !== 'spectator') 
+            document.getElementById('draw-offer-area').style.display = 'block';
         if (d.type === 'drawAccepted') showGameOver('draw');
     });
 
     database.ref('rooms/' + roomID + '/chat').on('child_added', (snapshot) => {
         const msg = snapshot.val();
         displayMessage(msg.user, msg.text);
-        if (msg.user !== (myColor === 'w' ? "White" : "Black")) playSound('snd-msg');
     });
 }
 
-// 6. TIMER & UI
 function startTimer() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         if (isGameOver) return;
         timers[game.turn()]--;
         updateTimerDisplay();
-        if (timers[game.turn()] <= 0) {
-            clearInterval(timerInterval);
+        if (timers[game.turn()] <= 0 && myColor === game.turn()) {
             database.ref('rooms/' + roomID + '/status').set({ type: 'timeout', by: game.turn() });
         }
     }, 1000);
+}
+
+function showGameOver(type, detail) {
+    if (isGameOver) return;
+    isGameOver = true; clearInterval(timerInterval); playSound('snd-game-end');
+    let win = false, draw = false, title = "Draw";
+    
+    if (type === 'resign' || type === 'timeout') {
+        win = (myColor !== detail);
+        title = win ? "You Win!" : "You Lose!";
+    } else {
+        if (game.in_checkmate()) {
+            win = (game.turn() !== myColor);
+            title = win ? "You Win!" : "You Lose!";
+        } else { draw = true; title = "Draw"; }
+    }
+
+    if (myColor !== 'spectator') updateElo(win, draw);
+    document.getElementById('winner-text').innerText = title;
+    document.getElementById('game-over-modal').style.display = 'block';
 }
 
 function updateTimerDisplay() {
@@ -213,18 +269,6 @@ function updateTimerDisplay() {
 
 function formatTime(s) { return `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`; }
 
-function showGameOver(type, detail) {
-    if (isGameOver) return;
-    isGameOver = true; clearInterval(timerInterval); playSound('snd-game-end');
-    let winner = "Draw", reason = "Game Over";
-    if (type === 'resign') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = "Resignation"; }
-    else if (type === 'timeout') { winner = (detail === 'w' ? "Black" : "White") + " Wins!"; reason = "Time out"; }
-    else { winner = game.in_checkmate() ? (game.turn() === 'w' ? "Black" : "White") + " Wins!" : "Draw"; reason = game.in_checkmate() ? "Checkmate" : "Draw"; }
-    document.getElementById('winner-text').innerText = winner;
-    document.getElementById('reason-text').innerText = reason;
-    document.getElementById('game-over-modal').style.display = 'block';
-}
-
 function updateGameState() {
     $('.square-55d63').removeClass('highlight-check highlight-last-move');
     const h = game.history({ verbose: true });
@@ -233,23 +277,21 @@ function updateGameState() {
         $(`.square-${l.from}, .square-${l.to}`).addClass('highlight-last-move');
     }
     if (highlightEnabled && game.in_check()) {
-        const k = findKing(game.turn());
-        $(`.square-${k}`).addClass('highlight-check');
+        const boardState = game.board();
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                const p = boardState[i][j];
+                if (p && p.type === 'k' && p.color === game.turn()) {
+                    $(`.square-${String.fromCharCode(97 + j)}${8 - i}`).addClass('highlight-check');
+                }
+            }
+        }
     }
     if (game.game_over()) showGameOver();
     else if (roomID) startTimer();
 }
 
-function findKing(c) {
-    for (let r = 0; r < 8; r++) {
-        for (let c2 = 0; c2 < 8; c2++) {
-            const sq = String.fromCharCode(97 + c2) + (8 - r);
-            const p = game.get(sq);
-            if (p && p.type === 'k' && p.color === c) return sq;
-        }
-    }
-}
-
+// 8. HELPERS
 function sendMessage() {
     const input = document.getElementById('chatInput');
     if (!input.value.trim() || !roomID) return;
@@ -291,4 +333,5 @@ function toggleFullScreen() {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();
     else if (document.exitFullscreen) document.exitFullscreen();
 }
+function requestNewGame() { location.reload(); }
 document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
